@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "verified_at_utc": "2026-07-22T01:54:48Z",
+  "tested_commit": "a26ec02f735ae35854638002107411f670b15949",
+  "environment": {
+    "conda_environment": "pytorch",
+    "python": "3.11.10",
+    "torch": "2.5.0+cu118"
+  },
+  "checks": [
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest -p no:cacheprovider -q",
+      "result": "14 passed in 2.35s"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m embodied_ai.ops doctor --root .",
+      "result": "ok"
+    }
+  ],
+  "preregistration": {
+    "id": "PR-20260722-01",
+    "sha256": "sha256:fa5f70343c520681e10ceb8801869deeaddc4664c7383891dc31eea2d5f9e883"
+  },
+  "notes": "All checks ran on laboratory without dependency installation or network access. Test fixtures do not create formal experiments."
+}
