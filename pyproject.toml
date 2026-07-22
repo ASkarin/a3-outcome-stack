@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=65"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "embodied-ai"
+version = "0.1.0"
+description = "Reproducible EduLite A3 experiment metadata and evidence foundation"
+requires-python = ">=3.11"
+
+[project.scripts]
+embodied-ai = "embodied_ai.ops.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
