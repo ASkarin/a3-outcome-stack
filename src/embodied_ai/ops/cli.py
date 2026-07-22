@@ -12,7 +12,7 @@ from .canonical import load_json
 from .checkpoints import verify_checkpoint
 from .doctor import doctor_project
 from .errors import OpsError, ValidationError
-from .experiments import register_experiment
+from .experiments import rebuild_registry, register_experiment
 from .freeze import create_freeze, verify_freeze_file
 from .manifests import (
     build_asset_manifest,
@@ -41,6 +41,7 @@ def _parser() -> argparse.ArgumentParser:
     register.add_argument("--spec", required=True)
     register.add_argument("--specs-dir", default="experiments/specs")
     register.add_argument("--registry", default="experiments/registry.csv")
+    register.add_argument("--summaries-dir", default="results/summaries")
 
     dataset = commands.add_parser("dataset")
     dataset_commands = dataset.add_subparsers(dest="action", required=True)
@@ -84,6 +85,8 @@ def _parser() -> argparse.ArgumentParser:
     result_reindex = result_commands.add_parser("reindex")
     result_reindex.add_argument("--summaries-dir", default="results/summaries")
     result_reindex.add_argument("--index", default="results/index.jsonl")
+    result_reindex.add_argument("--specs-dir", default="experiments/specs")
+    result_reindex.add_argument("--registry", default="experiments/registry.csv")
     result_verify = result_commands.add_parser("verify")
     result_verify.add_argument("--summaries-dir", default="results/summaries")
     result_verify.add_argument("--index", default="results/index.jsonl")
@@ -102,7 +105,12 @@ def _run(args: argparse.Namespace) -> Any:
     if args.command == "doctor":
         return doctor_project(args.root)
     if args.command == "experiment" and args.action == "register":
-        return register_experiment(load_json(args.spec), specs_dir=args.specs_dir, registry_path=args.registry)
+        return register_experiment(
+            load_json(args.spec),
+            specs_dir=args.specs_dir,
+            registry_path=args.registry,
+            summaries_dir=args.summaries_dir,
+        )
     if args.command == "dataset" and args.action == "manifest":
         episodes = load_json(args.episodes)
         if not isinstance(episodes, list):
@@ -137,6 +145,7 @@ def _run(args: argparse.Namespace) -> Any:
         return {"status": "ok", "summary": str(destination)}
     if args.command == "result" and args.action == "reindex":
         summaries = rebuild_results_index(args.summaries_dir, args.index)
+        rebuild_registry(args.specs_dir, args.registry, args.summaries_dir)
         return {"status": "ok", "records": len(summaries), "index": args.index}
     if args.command == "result" and args.action == "verify":
         verify_results_index(args.summaries_dir, args.index)
@@ -161,4 +170,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -6,7 +6,13 @@ import json
 import pytest
 
 from embodied_ai.ops.errors import IntegrityError, StateConflict, ValidationError
-from embodied_ai.ops.experiments import REGISTRY_FIELDS, materialize_experiment_spec, register_experiment
+from embodied_ai.ops.experiments import (
+    REGISTRY_FIELDS,
+    materialize_experiment_spec,
+    rebuild_registry,
+    register_experiment,
+    verify_registry,
+)
 from embodied_ai.ops.freeze import create_freeze, verify_freeze_file
 from embodied_ai.ops.results import finalize_result, rebuild_results_index, verify_results_index
 from embodied_ai.ops.runstate import create_run_state, transition_run_state
@@ -32,6 +38,20 @@ def test_registration_generates_registry(experiment_source, tmp_path):
     assert list(rows[0]) == REGISTRY_FIELDS
     assert len(rows) == 1
     assert rows[0]["experiment_id"] == registered["experiment_id"]
+
+    result = _summary()
+    result["experiment_id"] = registered["experiment_id"]
+    result["attempt_id"] = registered["experiment_id"] + "-A001"
+    summaries = tmp_path / "results" / "summaries"
+    finalize_result(result, summaries)
+    rebuild_registry(specs, registry, summaries)
+    verify_registry(specs, registry, summaries)
+    with registry.open("r", encoding="utf-8", newline="") as handle:
+        completed = list(csv.DictReader(handle))[0]
+    assert completed["status"] == "completed"
+    assert completed["primary_metric"] == "success_rate"
+    assert completed["result"] == "0.75"
+    assert completed["conclusion"] == "fixture"
 
 
 def test_run_state_rejects_terminal_reopen(tmp_path):
@@ -97,4 +117,3 @@ def test_freeze_seal_detects_tampering(freeze_source, tmp_path):
     path.write_text(json.dumps(tampered), encoding="utf-8")
     with pytest.raises(IntegrityError):
         verify_freeze_file(path)
-

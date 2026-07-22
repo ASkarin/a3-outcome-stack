@@ -4,7 +4,7 @@ This repository is the implementation and experiment evidence source for the Edu
 
 ## Evidence model
 
-- `experiments/specs/` contains immutable experiment specifications. `experiments/registry.csv` is generated from them.
+- `experiments/specs/` contains immutable experiment specifications. `experiments/registry.csv` is generated from specs plus the latest immutable terminal summary for each experiment.
 - `metadata/datasets/` and `metadata/assets/` contain immutable SHA-256 manifests for external data and assets.
 - `runs/` contains checkpoints and logs and is ignored by Git.
 - `results/summaries/` contains immutable per-attempt summaries. `results/index.jsonl` is generated from them.
@@ -40,4 +40,3 @@ Use the existing `pytorch` conda environment; no dependency installation or netw
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest -p no:cacheprovider
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m embodied_ai.ops doctor --root .
 ```
-

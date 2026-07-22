@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import csv
 import json
 import subprocess
 import sys
@@ -11,7 +10,7 @@ from typing import Any
 
 from .canonical import load_json, sha256_file
 from .errors import IntegrityError, ValidationError
-from .experiments import REGISTRY_FIELDS
+from .experiments import verify_registry
 from .results import verify_results_index
 
 REQUIRED_DIRECTORIES = [
@@ -47,12 +46,7 @@ def doctor_project(root: str | Path) -> dict[str, Any]:
         )
 
     registry_path = root_path / project.get("experiment_registry", "")
-    with registry_path.open("r", encoding="utf-8", newline="") as handle:
-        reader = csv.reader(handle)
-        header = next(reader, None)
-    if header != REGISTRY_FIELDS:
-        raise IntegrityError("experiment registry header differs from the stable schema")
-
+    verify_registry(root_path / "experiments/specs", registry_path, root_path / "results/summaries")
     result_index = root_path / project.get("result_index", "")
     verify_results_index(root_path / "results/summaries", result_index)
     for line_number, line in enumerate(result_index.read_text(encoding="utf-8").splitlines(), start=1):
@@ -89,4 +83,3 @@ def doctor_project(root: str | Path) -> dict[str, Any]:
         "preregistration_id": prereg.get("id"),
         "preregistration_sha256": actual_prereg_hash,
     }
-
