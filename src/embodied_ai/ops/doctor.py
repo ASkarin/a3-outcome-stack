@@ -12,10 +12,15 @@ from .canonical import load_json, sha256_file
 from .errors import IntegrityError, ValidationError
 from .experiments import verify_registry
 from .results import verify_results_index
+from embodied_ai.robot.types import verify_contract_file
+from embodied_ai.robot.upstream import verify_upstream_lock
 
 REQUIRED_DIRECTORIES = [
     "src/embodied_ai/ops",
+    "src/embodied_ai/robot",
     "configs",
+    "configs/robot",
+    "configs/upstream",
     "metadata/datasets",
     "metadata/assets",
     "metadata/freezes",
@@ -30,7 +35,11 @@ REQUIRED_DIRECTORIES = [
 
 def doctor_project(root: str | Path) -> dict[str, Any]:
     root_path = Path(root).resolve()
-    missing = [relative for relative in REQUIRED_DIRECTORIES if not (root_path / relative).is_dir()]
+    missing = [
+        relative
+        for relative in REQUIRED_DIRECTORIES
+        if not (root_path / relative).is_dir()
+    ]
     if missing:
         raise ValidationError(f"missing project directories: {missing}")
 
@@ -46,15 +55,24 @@ def doctor_project(root: str | Path) -> dict[str, Any]:
         )
 
     registry_path = root_path / project.get("experiment_registry", "")
-    verify_registry(root_path / "experiments/specs", registry_path, root_path / "results/summaries")
+    verify_registry(
+        root_path / "experiments/specs", registry_path, root_path / "results/summaries"
+    )
     result_index = root_path / project.get("result_index", "")
     verify_results_index(root_path / "results/summaries", result_index)
-    for line_number, line in enumerate(result_index.read_text(encoding="utf-8").splitlines(), start=1):
+    for line_number, line in enumerate(
+        result_index.read_text(encoding="utf-8").splitlines(), start=1
+    ):
         if line.strip():
             try:
                 json.loads(line)
             except json.JSONDecodeError as exc:
-                raise IntegrityError(f"invalid result index JSON at line {line_number}") from exc
+                raise IntegrityError(
+                    f"invalid result index JSON at line {line_number}"
+                ) from exc
+
+    contract = verify_contract_file(root_path / "configs/robot/a3_contract_v1.json")
+    upstream = verify_upstream_lock(root_path / "configs/upstream/edulite_a3.lock.json")
 
     try:
         branch = subprocess.check_output(
@@ -64,14 +82,18 @@ def doctor_project(root: str | Path) -> dict[str, Any]:
             ["git", "-C", str(root_path), "rev-parse", "HEAD"], text=True
         ).strip()
     except (OSError, subprocess.CalledProcessError) as exc:
-        raise ValidationError("project root must be a committed Git repository") from exc
+        raise ValidationError(
+            "project root must be a committed Git repository"
+        ) from exc
     if branch != "main":
         raise IntegrityError(f"expected Git branch main, got {branch}")
 
     try:
         import torch
     except ImportError as exc:
-        raise ValidationError("PyTorch is not importable in the active environment") from exc
+        raise ValidationError(
+            "PyTorch is not importable in the active environment"
+        ) from exc
 
     return {
         "status": "ok",
@@ -82,4 +104,7 @@ def doctor_project(root: str | Path) -> dict[str, Any]:
         "torch": torch.__version__,
         "preregistration_id": prereg.get("id"),
         "preregistration_sha256": actual_prereg_hash,
+        "robot_contract_schema": contract["schema_version"],
+        "a3_upstream_commit": upstream["commit"],
+        "hardware_verified": False,
     }

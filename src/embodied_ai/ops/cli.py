@@ -5,8 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from pathlib import Path
 from typing import Any
+
+from embodied_ai.robot.cli import add_robot_parser, run_robot_command
 
 from .canonical import load_json
 from .checkpoints import verify_checkpoint
@@ -98,10 +99,13 @@ def _parser() -> argparse.ArgumentParser:
     freeze_create.add_argument("--output", required=True)
     freeze_verify = freeze_commands.add_parser("verify")
     freeze_verify.add_argument("--manifest", required=True)
+    add_robot_parser(commands)
     return parser
 
 
 def _run(args: argparse.Namespace) -> Any:
+    if args.command == "robot":
+        return run_robot_command(args)
     if args.command == "doctor":
         return doctor_project(args.root)
     if args.command == "experiment" and args.action == "register":
@@ -127,17 +131,28 @@ def _run(args: argparse.Namespace) -> Any:
     if args.command == "dataset" and args.action == "verify":
         manifest = load_json(args.manifest)
         verify_dataset_manifest(args.root, manifest)
-        return {"status": "ok", "manifest": args.manifest, "manifest_sha256": manifest["manifest_sha256"]}
+        return {
+            "status": "ok",
+            "manifest": args.manifest,
+            "manifest_sha256": manifest["manifest_sha256"],
+        }
     if args.command == "asset" and args.action == "manifest":
         manifest = build_asset_manifest(
-            args.root, asset_id=args.asset_id, kind=args.kind, logical_uri=args.logical_uri
+            args.root,
+            asset_id=args.asset_id,
+            kind=args.kind,
+            logical_uri=args.logical_uri,
         )
         write_manifest_immutable(manifest, args.output, kind="asset")
         return manifest
     if args.command == "asset" and args.action == "verify":
         manifest = load_json(args.manifest)
         verify_asset_manifest(args.root, manifest)
-        return {"status": "ok", "manifest": args.manifest, "manifest_sha256": manifest["manifest_sha256"]}
+        return {
+            "status": "ok",
+            "manifest": args.manifest,
+            "manifest_sha256": manifest["manifest_sha256"],
+        }
     if args.command == "checkpoint" and args.action == "verify":
         return verify_checkpoint(args.checkpoint, args.metadata)
     if args.command == "result" and args.action == "finalize":
@@ -154,7 +169,11 @@ def _run(args: argparse.Namespace) -> Any:
         return create_freeze(load_json(args.input), args.output)
     if args.command == "freeze" and args.action == "verify":
         manifest = verify_freeze_file(args.manifest)
-        return {"status": "ok", "manifest": args.manifest, "freeze_sha256": manifest["freeze_sha256"]}
+        return {
+            "status": "ok",
+            "manifest": args.manifest,
+            "freeze_sha256": manifest["freeze_sha256"],
+        }
     raise ValidationError("unsupported command")
 
 
@@ -164,7 +183,12 @@ def main(argv: list[str] | None = None) -> int:
         _emit(_run(args))
         return 0
     except OpsError as exc:
-        print(json.dumps({"error": type(exc).__name__, "message": str(exc)}, sort_keys=True), file=sys.stderr)
+        print(
+            json.dumps(
+                {"error": type(exc).__name__, "message": str(exc)}, sort_keys=True
+            ),
+            file=sys.stderr,
+        )
         return exc.exit_code
 
 

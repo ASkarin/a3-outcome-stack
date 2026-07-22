@@ -32,6 +32,21 @@ PYTHONPATH=src python -m embodied_ai.ops freeze verify --manifest metadata/freez
 
 All JSON is UTF-8 canonicalized before identity hashes are computed. Validation errors exit with code 2, integrity mismatches with 3, and lifecycle conflicts with 4. There is no force-resume path.
 
+## Stage 1A robot contract
+
+The hardware-neutral A3 interface lives in `src/embodied_ai/robot/`. `SafeRobot` is the only public actuator gateway; deterministic mock and strict replay backends exercise the same observation/action, timing, and latched safety contracts. The official SDK is pinned by `configs/upstream/edulite_a3.lock.json` and is imported only when an SDK backend is explicitly constructed.
+
+Stage 1A is hardware-unverified. The checked-in calibration and safety files contain null, unfrozen hardware values and therefore cannot enable motors. Mock limits and timeouts are synthetic test fixtures and must never be reused for hardware.
+
+```bash
+PYTHONPATH=src python -m embodied_ai.ops robot contract verify
+PYTHONPATH=src python -m embodied_ai.ops robot upstream verify --checkout .cache/upstream/EDULITE_A3
+PYTHONPATH=src python -m embodied_ai.ops robot mock record --output runs/stage1a/mock-001 --steps 3
+PYTHONPATH=src python -m embodied_ai.ops robot trace verify --trace runs/stage1a/mock-001
+PYTHONPATH=src python -m embodied_ai.ops robot replay --trace runs/stage1a/mock-001 --strict
+PYTHONPATH=src python -m embodied_ai.ops robot doctor --root . --upstream-checkout .cache/upstream/EDULITE_A3
+```
+
 ## Verification
 
 Use the existing `pytorch` conda environment; no dependency installation or network access is required:
