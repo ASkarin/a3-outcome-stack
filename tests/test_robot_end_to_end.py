@@ -10,7 +10,7 @@ def run_cli(root: Path, *args: str) -> subprocess.CompletedProcess:
     environment = dict(os.environ)
     environment["PYTHONPATH"] = str(root / "src")
     return subprocess.run(
-        [sys.executable, "-m", "embodied_ai.ops", *args],
+        [sys.executable, "-m", "a3_outcome_stack.ops", *args],
         cwd=root,
         env=environment,
         text=True,

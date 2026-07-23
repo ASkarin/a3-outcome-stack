@@ -5,13 +5,18 @@ from pathlib import Path
 
 import pytest
 
-from embodied_ai.ops.canonical import load_json
-from embodied_ai.ops.errors import StateConflict, ValidationError
-from embodied_ai.robot.backend import SafeRobot
-from embodied_ai.robot.clock import ManualClock
-from embodied_ai.robot.mock import MockBackend
-from embodied_ai.robot.safety import _ALLOWED, SafetyState, SafetySupervisor, StopReason
-from embodied_ai.robot.types import ActionEnvelope
+from a3_outcome_stack.ops.canonical import load_json
+from a3_outcome_stack.ops.errors import StateConflict, ValidationError
+from a3_outcome_stack.robot.backend import SafeRobot
+from a3_outcome_stack.robot.clock import ManualClock
+from a3_outcome_stack.robot.mock import MockBackend
+from a3_outcome_stack.robot.safety import (
+    _ALLOWED,
+    SafetyState,
+    SafetySupervisor,
+    StopReason,
+)
+from a3_outcome_stack.robot.types import ActionEnvelope
 
 ROOT = Path(__file__).parents[1]
 

@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import copy
-
 import pytest
 
-from embodied_ai.ops.errors import IntegrityError, StateConflict, ValidationError
-from embodied_ai.ops.manifests import (
+from a3_outcome_stack.ops.errors import IntegrityError, StateConflict, ValidationError
+from a3_outcome_stack.ops.manifests import (
     build_asset_manifest,
     build_dataset_manifest,
     verify_asset_manifest,

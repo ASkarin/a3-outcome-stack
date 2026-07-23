@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import copy
-
 import pytest
 
 HASH_A = "sha256:" + "a" * 64

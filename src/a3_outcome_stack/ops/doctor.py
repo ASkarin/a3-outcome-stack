@@ -12,12 +12,12 @@ from .canonical import load_json, sha256_file
 from .errors import IntegrityError, ValidationError
 from .experiments import verify_registry
 from .results import verify_results_index
-from embodied_ai.robot.types import verify_contract_file
-from embodied_ai.robot.upstream import verify_upstream_lock
+from a3_outcome_stack.robot.types import verify_contract_file
+from a3_outcome_stack.robot.upstream import verify_upstream_lock
 
 REQUIRED_DIRECTORIES = [
-    "src/embodied_ai/ops",
-    "src/embodied_ai/robot",
+    "src/a3_outcome_stack/ops",
+    "src/a3_outcome_stack/robot",
     "configs",
     "configs/robot",
     "configs/upstream",
@@ -44,6 +44,14 @@ def doctor_project(root: str | Path) -> dict[str, Any]:
         raise ValidationError(f"missing project directories: {missing}")
 
     project = load_json(root_path / "configs/project.json")
+    if project.get("project_id") != "a3-outcome-stack":
+        raise IntegrityError(
+            f"expected project_id a3-outcome-stack, got {project.get('project_id')}"
+        )
+    if project.get("display_name") != "A3 OutcomeStack":
+        raise IntegrityError(
+            f"expected display_name A3 OutcomeStack, got {project.get('display_name')}"
+        )
     prereg = project.get("preregistration", {})
     snapshot = root_path / prereg.get("path", "")
     if not snapshot.is_file():
@@ -97,6 +105,8 @@ def doctor_project(root: str | Path) -> dict[str, Any]:
 
     return {
         "status": "ok",
+        "project_id": project["project_id"],
+        "display_name": project["display_name"],
         "project_root": str(root_path),
         "git_branch": branch,
         "git_commit": commit,

@@ -3,13 +3,14 @@ requires = ["setuptools>=65"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "embodied-ai"
-version = "0.1.0"
-description = "Reproducible EduLite A3 experiment metadata and evidence foundation"
+name = "a3-outcome-stack"
+version = "0.2.0"
+description = "A reproducible EduLite A3 learning stack with action-outcome evaluation"
 requires-python = ">=3.11"
 
 [project.scripts]
-embodied-ai = "embodied_ai.ops.cli:main"
+a3-outcome-stack = "a3_outcome_stack.ops.cli:main"
+embodied-ai = "a3_outcome_stack.ops.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

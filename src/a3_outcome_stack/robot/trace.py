@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from embodied_ai.ops.canonical import (
+from a3_outcome_stack.ops.canonical import (
     atomic_write_bytes,
     atomic_write_json,
     canonical_json_bytes,
@@ -18,7 +18,7 @@ from embodied_ai.ops.canonical import (
     sha256_file,
     verify_sealed_document,
 )
-from embodied_ai.ops.errors import IntegrityError, StateConflict, ValidationError
+from a3_outcome_stack.ops.errors import IntegrityError, StateConflict, ValidationError
 
 from .types import ActionEnvelope, ActionReceipt, Observation, validate_feature_map
 

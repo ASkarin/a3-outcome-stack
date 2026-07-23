@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 import torch
 
-from embodied_ai.ops.checkpoints import CheckpointManager, verify_checkpoint
-from embodied_ai.ops.errors import IntegrityError, StateConflict, ValidationError
+from a3_outcome_stack.ops.checkpoints import CheckpointManager, verify_checkpoint
+from a3_outcome_stack.ops.errors import IntegrityError, StateConflict, ValidationError
 
 
 def _identity(attempt="EXP-A-ACT-AAAAAAAAAAAA-A001"):

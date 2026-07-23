@@ -5,17 +5,17 @@ import json
 
 import pytest
 
-from embodied_ai.ops.errors import IntegrityError, StateConflict, ValidationError
-from embodied_ai.ops.experiments import (
+from a3_outcome_stack.ops.errors import IntegrityError, StateConflict, ValidationError
+from a3_outcome_stack.ops.experiments import (
     REGISTRY_FIELDS,
     materialize_experiment_spec,
     rebuild_registry,
     register_experiment,
     verify_registry,
 )
-from embodied_ai.ops.freeze import create_freeze, verify_freeze_file
-from embodied_ai.ops.results import finalize_result, rebuild_results_index, verify_results_index
-from embodied_ai.ops.runstate import create_run_state, transition_run_state
+from a3_outcome_stack.ops.freeze import create_freeze, verify_freeze_file
+from a3_outcome_stack.ops.results import finalize_result, rebuild_results_index, verify_results_index
+from a3_outcome_stack.ops.runstate import create_run_state, transition_run_state
 
 
 def test_experiment_id_is_stable_and_identity_sensitive(experiment_source):

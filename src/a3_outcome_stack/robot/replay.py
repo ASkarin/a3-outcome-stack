@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
-from embodied_ai.ops.canonical import canonical_json_bytes
-from embodied_ai.ops.errors import IntegrityError, StateConflict
+from a3_outcome_stack.ops.canonical import canonical_json_bytes
+from a3_outcome_stack.ops.errors import IntegrityError, StateConflict
 
 from .safety import StopReason
 from .trace import VerifiedTrace, verify_trace

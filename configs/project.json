@@ -1,5 +1,9 @@
 {
-  "project_id": "edulite-a3-embodied-ai",
+  "project_id": "a3-outcome-stack",
+  "display_name": "A3 OutcomeStack",
+  "legacy_project_ids": [
+    "edulite-a3-embodied-ai"
+  ],
   "schema_version": "1.0",
   "preregistration": {
     "id": "PR-20260722-01",

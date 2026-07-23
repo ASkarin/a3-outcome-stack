@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
 
-from embodied_ai.ops.errors import IntegrityError, StateConflict, ValidationError
+from a3_outcome_stack.ops.errors import IntegrityError, StateConflict, ValidationError
 
 from .clock import Clock
 from .safety import SafetyState, SafetySupervisor, StopReason, Watchdog

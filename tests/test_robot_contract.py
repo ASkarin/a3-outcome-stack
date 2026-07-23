@@ -5,12 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from embodied_ai.ops.canonical import load_json
-from embodied_ai.ops.errors import StateConflict
-from embodied_ai.robot.a3_sdk import A3SdkBackend, validate_hardware_ready
-from embodied_ai.robot.clock import ManualClock
-from embodied_ai.robot.mock import MockBackend
-from embodied_ai.robot.types import (
+from a3_outcome_stack.ops.canonical import load_json
+from a3_outcome_stack.ops.errors import StateConflict
+from a3_outcome_stack.robot.a3_sdk import A3SdkBackend, validate_hardware_ready
+from a3_outcome_stack.robot.clock import ManualClock
+from a3_outcome_stack.robot.mock import MockBackend
+from a3_outcome_stack.robot.types import (
     ActionEnvelope,
     action_features,
     rpy_to_quaternion_xyzw,

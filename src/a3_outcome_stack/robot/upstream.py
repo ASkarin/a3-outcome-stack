@@ -7,13 +7,13 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from embodied_ai.ops.canonical import (
+from a3_outcome_stack.ops.canonical import (
     load_json,
     resolve_relative,
     sha256_file,
     verify_sealed_document,
 )
-from embodied_ai.ops.errors import IntegrityError, ValidationError
+from a3_outcome_stack.ops.errors import IntegrityError, ValidationError
 
 
 def verify_upstream_lock(

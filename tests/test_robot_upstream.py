@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from embodied_ai.ops.canonical import atomic_write_json, seal_document, sha256_file
-from embodied_ai.ops.errors import IntegrityError
-from embodied_ai.robot.upstream import verify_upstream_lock
+from a3_outcome_stack.ops.canonical import atomic_write_json, seal_document, sha256_file
+from a3_outcome_stack.ops.errors import IntegrityError
+from a3_outcome_stack.robot.upstream import verify_upstream_lock
 
 ROOT = Path(__file__).parents[1]
 

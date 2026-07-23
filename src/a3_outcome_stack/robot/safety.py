@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from embodied_ai.ops.errors import StateConflict, ValidationError
+from a3_outcome_stack.ops.errors import StateConflict, ValidationError
 
 from .clock import Clock
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from embodied_ai.ops.errors import StateConflict, ValidationError
+from a3_outcome_stack.ops.errors import StateConflict, ValidationError
 
 from .clock import Clock
 from .safety import StopReason

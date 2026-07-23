@@ -9,8 +9,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from embodied_ai.ops.canonical import canonical_json_bytes, load_json, utc_now
-from embodied_ai.ops.errors import IntegrityError, ValidationError
+from a3_outcome_stack.ops.canonical import canonical_json_bytes, load_json, utc_now
+from a3_outcome_stack.ops.errors import IntegrityError, ValidationError
 
 from .backend import SafeRobot
 from .clock import ManualClock

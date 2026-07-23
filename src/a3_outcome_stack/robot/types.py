@@ -7,8 +7,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from embodied_ai.ops.canonical import load_json, validate_sha256
-from embodied_ai.ops.errors import ValidationError
+from a3_outcome_stack.ops.canonical import load_json, validate_sha256
+from a3_outcome_stack.ops.errors import ValidationError
 
 JOINT_NAMES = ("L1", "L2", "L3", "L4", "L5", "L6", "L7")
 ACTION_MODE = "joint_position_abs"

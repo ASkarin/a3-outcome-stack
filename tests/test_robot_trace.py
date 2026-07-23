@@ -4,14 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from embodied_ai.ops.canonical import load_json
-from embodied_ai.ops.errors import IntegrityError, ValidationError
-from embodied_ai.robot.backend import SafeRobot
-from embodied_ai.robot.clock import ManualClock
-from embodied_ai.robot.mock import MockBackend
-from embodied_ai.robot.replay import ReplayBackend
-from embodied_ai.robot.trace import TraceWriter, verify_trace
-from embodied_ai.robot.types import ActionEnvelope, action_features
+from a3_outcome_stack.ops.canonical import load_json
+from a3_outcome_stack.ops.errors import IntegrityError, ValidationError
+from a3_outcome_stack.robot.backend import SafeRobot
+from a3_outcome_stack.robot.clock import ManualClock
+from a3_outcome_stack.robot.mock import MockBackend
+from a3_outcome_stack.robot.replay import ReplayBackend
+from a3_outcome_stack.robot.trace import TraceWriter, verify_trace
+from a3_outcome_stack.robot.types import ActionEnvelope, action_features
 
 ROOT = Path(__file__).parents[1]
 
@@ -161,7 +161,7 @@ def test_unsealed_camera_reference_is_rejected(tmp_path):
     records_path = trace_path / "records.jsonl"
     records = records_path.read_text(encoding="utf-8").splitlines()
     import json
-    from embodied_ai.ops.canonical import (
+    from a3_outcome_stack.ops.canonical import (
         atomic_write_json,
         canonical_json_bytes,
         seal_document,

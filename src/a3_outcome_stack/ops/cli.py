@@ -7,7 +7,7 @@ import json
 import sys
 from typing import Any
 
-from embodied_ai.robot.cli import add_robot_parser, run_robot_command
+from a3_outcome_stack.robot.cli import add_robot_parser, run_robot_command
 
 from .canonical import load_json
 from .checkpoints import verify_checkpoint
@@ -30,7 +30,7 @@ def _emit(value: Any) -> None:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="embodied-ai")
+    parser = argparse.ArgumentParser(prog="a3-outcome-stack")
     commands = parser.add_subparsers(dest="command", required=True)
 
     doctor = commands.add_parser("doctor")

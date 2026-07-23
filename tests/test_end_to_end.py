@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import torch
 
-from embodied_ai.ops.checkpoints import CheckpointManager
-from embodied_ai.ops.experiments import attempt_id, register_experiment
-from embodied_ai.ops.freeze import create_freeze, verify_freeze_file
-from embodied_ai.ops.manifests import build_dataset_manifest, verify_dataset_manifest, write_manifest_immutable
-from embodied_ai.ops.results import finalize_result, rebuild_results_index, verify_results_index
-from embodied_ai.ops.runstate import create_run_state, transition_run_state
+from a3_outcome_stack.ops.checkpoints import CheckpointManager
+from a3_outcome_stack.ops.experiments import attempt_id, register_experiment
+from a3_outcome_stack.ops.freeze import create_freeze, verify_freeze_file
+from a3_outcome_stack.ops.manifests import build_dataset_manifest, verify_dataset_manifest, write_manifest_immutable
+from a3_outcome_stack.ops.results import finalize_result, rebuild_results_index, verify_results_index
+from a3_outcome_stack.ops.runstate import create_run_state, transition_run_state
 
 
 def test_stage0_evidence_chain(experiment_source, freeze_source, tmp_path):

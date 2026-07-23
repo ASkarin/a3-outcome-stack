@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Protocol
 
-from embodied_ai.ops.errors import ValidationError
+from a3_outcome_stack.ops.errors import ValidationError
 
 
 class Clock(Protocol):
