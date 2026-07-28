@@ -10,7 +10,6 @@ requires-python = ">=3.11"
 
 [project.scripts]
 a3-outcome-stack = "a3_outcome_stack.ops.cli:main"
-embodied-ai = "a3_outcome_stack.ops.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -2,7 +2,7 @@
 
 A3 OutcomeStack is a reproducible real-robot learning stack for EduLite A3, spanning data capture, ACT/VLA training, deployment, evaluation, and action-outcome prediction. This repository is the implementation and experiment evidence source. Planning, decisions, and the canonical preregistration live in the local control repository; the frozen preregistration snapshot in this repository is byte-identical and hash-bound to every formal experiment.
 
-The canonical project slug and Python distribution are `a3-outcome-stack`; the Python namespace is `a3_outcome_stack`. The legacy `embodied_ai` import and `embodied-ai` CLI remain compatibility aliases for reproducing Stage 0/1A records and must not be used by new code.
+The canonical project slug and Python distribution are `a3-outcome-stack`; the Python namespace and CLI are `a3_outcome_stack` and `a3-outcome-stack`. Historical Stage 0/1A commits and evidence remain available through Git, but their former names are not active aliases on the current branch.
 
 ## Evidence model
 
