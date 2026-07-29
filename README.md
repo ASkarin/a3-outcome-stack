@@ -53,9 +53,19 @@ PYTHONPATH=src python -m a3_outcome_stack.ops robot doctor --root . --upstream-c
 
 ## Verification
 
-Use the existing `pytorch` conda environment; no dependency installation or network access is required:
+The supported remote training environment is the project container defined under
+`infra/container/`. It uses Python 3.12, the repository `uv.lock`, CUDA 12.8 PyTorch,
+and a commit-pinned LeRobot installation. The former shared Conda environment is not a
+supported entry point.
+
+Each collaborator keeps a separate clone under their persistent home. From a clone,
+run project code without modifying the root-owned container environment:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest -p no:cacheprovider
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m a3_outcome_stack.ops doctor --root .
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /opt/a3/.venv/bin/python -m pytest -p no:cacheprovider
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /opt/a3/.venv/bin/python -m a3_outcome_stack.ops doctor --root .
 ```
+
+Container construction, deployment inputs, artifact promotion, GPU locking, and
+acceptance checks are documented in `infra/container/README.md`. Formal training uses
+only immutable image digests and promoted local model/dataset revisions.

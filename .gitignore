@@ -5,6 +5,8 @@ __pycache__/
 .ruff_cache/
 .venv/
 .cache/
+.env
+infra/container/.env
 
 # Runtime state and large artifacts stay outside Git.
 runs/*
@@ -18,3 +20,7 @@ checkpoints/
 *.onnx
 *.bag
 *.mp4
+
+# Generated container evidence and local deployment state.
+infra/container/*.local
+infra/container/environment-verification.json

@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+.cache
+__pycache__
+*.pyc
+data
+artifacts
+checkpoints
+runs
+results
+evidence
+metadata
+tests
+infra/container/.env
+infra/container/*.local

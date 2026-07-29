@@ -1,0 +1,7 @@
+# This lock is intentionally non-deployable until the first GHCR build completes.
+# Replace the zero digest and PENDING fields in a dedicated digest-lock PR.
+A3_IMAGE_REPOSITORY=ghcr.io/askarin/a3-outcome-stack-env
+A3_IMAGE_DIGEST=sha256:0000000000000000000000000000000000000000000000000000000000000000
+A3_IMAGE_SOURCE_COMMIT=PENDING
+A3_BASE_IMAGE_DIGEST=sha256:ad6d59a3bbf3e82c1c849c9ac09cfc2a3e0bbb8655042fd899be6681b3fe2a85
+A3_UV_LOCK_SHA256=6b9a6f51a15963d82d7312cf8a0b72b31987b199157f2329832c1bc65d36d57c
