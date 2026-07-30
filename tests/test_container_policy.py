@@ -19,6 +19,7 @@ from a3_container_common import (  # noqa: E402
     file_inventory,
     inventory_identity,
     load_json,
+    load_runtime_config,
     validate_digest,
     validate_repo_id,
     validate_revision,
@@ -78,12 +79,15 @@ def test_sshd_disables_root_and_password_login() -> None:
 def test_ssh_shells_load_the_locked_environment() -> None:
     entrypoint = (CONTAINER / "entrypoint.sh").read_text(encoding="utf-8")
     profile = (CONTAINER / "profile.sh").read_text(encoding="utf-8")
+    doctor = (CONTAINER / "bin" / "a3-env-doctor").read_text(encoding="utf-8")
     assert "install_shell_startup" in entrypoint
     assert "enable_public_key_account" in entrypoint
     assert "| chpasswd" in entrypoint
     assert '"u:${A3_ADMIN_USER}:rwx,u:${A3_COLLAB_USER}:r-x,m::rwx"' in entrypoint
     assert "source /etc/profile.d/a3.sh" in entrypoint
     assert 'export PATH="/opt/a3/.venv/bin:${PATH}"' in profile
+    assert 'runtime.get("image_digest", "")' in doctor
+    assert 'os.environ.get("A3_IMAGE_DIGEST"' not in doctor
 
 
 def test_collaborator_supplementary_groups_are_reset() -> None:
@@ -152,6 +156,9 @@ def test_pr_container_build_has_no_registry_write_credentials() -> None:
     assert "push: false" in container_job
     assert "packages: write" in publish_job
     assert "push: true" in publish_job
+    assert "Detect image input changes" in container_job
+    assert '":(exclude)infra/container/image.lock"' in container_job
+    assert "Confirm image build is not required" in container_job
 
 
 def test_workflow_actions_are_commit_pinned() -> None:
@@ -177,6 +184,25 @@ def test_identifier_validation(function, valid: str, invalid: str) -> None:
     assert function(valid) == valid
     with pytest.raises(A3ContainerError):
         function(invalid)
+
+
+def test_runtime_config_validates_image_digest(tmp_path: Path) -> None:
+    runtime_config = tmp_path / "runtime.json"
+    payload = {
+        "schema_version": 1,
+        "workspace_root": "/workspace",
+        "admin_user": "admin",
+        "collaborator_user": "collaborator",
+        "group_name": "a3",
+        "image_digest": f"sha256:{'a' * 64}",
+    }
+    runtime_config.write_text(json.dumps(payload), encoding="utf-8")
+    assert load_runtime_config(runtime_config)["image_digest"] == payload["image_digest"]
+
+    payload["image_digest"] = "sha256:invalid"
+    runtime_config.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(A3ContainerError, match="image digest"):
+        load_runtime_config(runtime_config)
 
 
 def test_artifact_inventory_and_atomic_json(tmp_path: Path) -> None:
@@ -243,15 +269,9 @@ def test_env_example_contains_no_real_identity() -> None:
     assert "password" not in env_example.lower()
 
 
-def test_environment_evidence_is_complete_and_matches_the_lock() -> None:
+def test_environment_evidence_is_complete_and_internally_consistent() -> None:
     verification = ROOT / "evidence" / "environment_verification.json"
     evidence = json.loads(verification.read_text(encoding="utf-8"))
-    image_lock = {
-        key: value
-        for line in (CONTAINER / "image.lock").read_text(encoding="utf-8").splitlines()
-        if line and not line.startswith("#")
-        for key, value in [line.split("=", 1)]
-    }
 
     assert evidence["schema_version"] == (
         "a3-remote-training-environment-verification-v1"
@@ -264,11 +284,13 @@ def test_environment_evidence_is_complete_and_matches_the_lock() -> None:
     assert evidence["authority"]["collaborator_approval_required"] is False
 
     image = evidence["image"]
-    assert image["repository"] == image_lock["A3_IMAGE_REPOSITORY"]
-    assert image["digest"] == image_lock["A3_IMAGE_DIGEST"]
-    assert image["source_commit"] == image_lock["A3_IMAGE_SOURCE_COMMIT"]
-    assert image["base_image_digest"] == image_lock["A3_BASE_IMAGE_DIGEST"]
-    assert image["uv_lock_sha256"] == image_lock["A3_UV_LOCK_SHA256"]
+    assert image["repository"] == "ghcr.io/askarin/a3-outcome-stack-env"
+    assert validate_digest(image["digest"]) == image["digest"]
+    assert validate_revision(image["source_commit"]) == image["source_commit"]
+    assert image["base_image_digest"] == (
+        "sha256:ad6d59a3bbf3e82c1c849c9ac09cfc2a3e0bbb8655042fd899be6681b3fe2a85"
+    )
+    assert re.fullmatch(r"[0-9a-f]{64}", image["uv_lock_sha256"])
     assert image["packages"]["tensorboard"] == "2.21.0"
 
     access = evidence["access_and_permissions"]

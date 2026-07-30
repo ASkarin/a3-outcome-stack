@@ -95,6 +95,10 @@ def load_runtime_config(path: Path = RUNTIME_CONFIG) -> dict[str, Any]:
     missing = sorted(required - payload.keys())
     if missing:
         raise A3ContainerError(f"runtime config is missing keys: {', '.join(missing)}")
+    image_digest = payload["image_digest"]
+    if not isinstance(image_digest, str):
+        raise A3ContainerError("runtime config image_digest must be a string")
+    validate_digest(image_digest)
     return payload
 
 
