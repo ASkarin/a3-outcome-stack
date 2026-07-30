@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import re
@@ -38,6 +39,7 @@ def test_compose_has_required_isolation() -> None:
     assert "${A3_WORKSPACE_HOST" in compose
     assert "${A3_SSH_HOST_KEYS_HOST" in compose
     assert "${A3_AUTH_KEYS_HOST" in compose
+    assert compose.count("create_host_path: false") == 3
 
 
 def test_dockerfile_pins_the_training_stack() -> None:
@@ -75,11 +77,31 @@ def test_collaborator_supplementary_groups_are_reset() -> None:
     assert 'usermod --groups "${A3_GROUP_NAME},sudo" "${A3_ADMIN_USER}"' in entrypoint
 
 
-def test_image_lock_starts_non_deployable() -> None:
+def test_image_lock_is_deployable_and_matches_tracked_inputs() -> None:
     lock = (CONTAINER / "image.lock").read_text(encoding="utf-8")
-    assert f"A3_IMAGE_DIGEST=sha256:{'0' * 64}" in lock
-    with pytest.raises(A3ContainerError, match="zero placeholder"):
-        validate_digest(f"sha256:{'0' * 64}")
+    digest_match = re.search(
+        r"^A3_IMAGE_DIGEST=(sha256:[0-9a-f]{64})$",
+        lock,
+        flags=re.MULTILINE,
+    )
+    source_match = re.search(
+        r"^A3_IMAGE_SOURCE_COMMIT=([0-9a-f]{40})$",
+        lock,
+        flags=re.MULTILINE,
+    )
+    uv_lock_match = re.search(
+        r"^A3_UV_LOCK_SHA256=([0-9a-f]{64})$",
+        lock,
+        flags=re.MULTILINE,
+    )
+    assert digest_match is not None
+    assert source_match is not None
+    assert uv_lock_match is not None
+    assert validate_digest(digest_match.group(1)) != f"sha256:{'0' * 64}"
+    assert validate_revision(source_match.group(1)) == source_match.group(1)
+    assert uv_lock_match.group(1) == hashlib.sha256(
+        (ROOT / "uv.lock").read_bytes()
+    ).hexdigest()
 
 
 def test_deployment_wrapper_keeps_image_lock_authoritative() -> None:
