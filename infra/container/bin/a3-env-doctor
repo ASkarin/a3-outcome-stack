@@ -82,7 +82,10 @@ def main() -> int:
         add_check(checks, "runtime_config", "fail", str(exc))
 
     try:
-        image_digest = validate_digest(os.environ.get("A3_IMAGE_DIGEST", ""))
+        runtime_digest = runtime.get("image_digest", "")
+        image_digest = validate_digest(
+            runtime_digest if isinstance(runtime_digest, str) else ""
+        )
         add_check(checks, "image_digest", "pass", image_digest)
     except A3ContainerError as exc:
         add_check(checks, "image_digest", "fail", str(exc))
