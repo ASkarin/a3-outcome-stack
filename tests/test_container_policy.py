@@ -243,9 +243,64 @@ def test_env_example_contains_no_real_identity() -> None:
     assert "password" not in env_example.lower()
 
 
-def test_no_fake_environment_evidence() -> None:
+def test_environment_evidence_is_complete_and_matches_the_lock() -> None:
     verification = ROOT / "evidence" / "environment_verification.json"
-    assert not verification.exists()
+    evidence = json.loads(verification.read_text(encoding="utf-8"))
+    image_lock = {
+        key: value
+        for line in (CONTAINER / "image.lock").read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith("#")
+        for key, value in [line.split("=", 1)]
+    }
+
+    assert evidence["schema_version"] == (
+        "a3-remote-training-environment-verification-v1"
+    )
+    assert evidence["status"] == "pass"
+    assert evidence["acceptance_complete"] is True
+    assert evidence["scope"]["training_environment_verified"] is True
+    assert evidence["scope"]["real_robot_hardware_verified"] is False
+    assert evidence["authority"]["administrator_has_final_decision"] is True
+    assert evidence["authority"]["collaborator_approval_required"] is False
+
+    image = evidence["image"]
+    assert image["repository"] == image_lock["A3_IMAGE_REPOSITORY"]
+    assert image["digest"] == image_lock["A3_IMAGE_DIGEST"]
+    assert image["source_commit"] == image_lock["A3_IMAGE_SOURCE_COMMIT"]
+    assert image["base_image_digest"] == image_lock["A3_BASE_IMAGE_DIGEST"]
+    assert image["uv_lock_sha256"] == image_lock["A3_UV_LOCK_SHA256"]
+    assert image["packages"]["tensorboard"] == "2.21.0"
+
+    access = evidence["access_and_permissions"]
+    assert access["external_ssh"]["administrator"]["status"] == "pass"
+    collaborator = access["external_ssh"]["collaborator"]
+    assert collaborator["status"] == "pass"
+    assert collaborator["evidence_source"].endswith("user_attestation_in_codex_thread")
+    assert access["external_ssh"]["root_login_rejected"] is True
+    assert access["external_ssh"]["password_only_login_rejected"] is True
+    assert access["collaborator_sudo_rejected"] is True
+    assert access["collaborator_releases_read_only"] is True
+
+    acceptance = evidence["acceptance_run"]
+    assert acceptance["status"] == "succeeded"
+    assert acceptance["exit_code"] == 0
+    assert acceptance["image_digest"] == image["digest"]
+    assert acceptance["single_gpu_tensor_allocation"]["gpu_count"] == 3
+    assert acceptance["nccl_two_gpu"]["iterations"] == 100
+    assert acceptance["nccl_three_gpu"]["iterations"] == 100
+    assert acceptance["dataloader"]["world_size"] == 3
+    assert acceptance["dataloader"]["workers_per_rank"] == 2
+    assert len(acceptance["dataloader"]["ranks"]) == 3
+    assert all(
+        rank["duration_seconds"] >= 600
+        for rank in acceptance["dataloader"]["ranks"]
+    )
+    assert acceptance["dataloader"]["shared_memory_or_bus_errors"] == 0
+    assert acceptance["logging"]["tensorboard_event_count"] >= 1
+    assert acceptance["logging"]["wandb_offline_run_count"] >= 1
+
+    assert evidence["artifact_acceptance"]["offline_load_as_collaborator"] is True
+    assert evidence["restart_persistence"]["status"] == "pass"
 
 
 def test_json_module_is_available_for_ci_smoke() -> None:
