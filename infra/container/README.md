@@ -45,7 +45,8 @@ ghcr.io/askarin/a3-outcome-stack-env:git-<40-character-source-commit>
 ```
 
 The GHCR package must remain private and linked to the repository. Verify its visibility
-and grant the collaborator read access before approving the first digest-lock PR.
+and grant the collaborator read access before the administrator approves the first
+digest-lock PR.
 The workflow reports the immutable digest, source commit, base digest, and `uv.lock`
 SHA-256. The administrator records those values in `image.lock` through a separate PR.
 `a3-compose pull`, `up`, and `restart` reject the zero placeholder or incomplete locks.
@@ -56,6 +57,13 @@ Between merging an environment-source change and merging its separate digest-loc
 the tracked `image.lock` intentionally continues to describe the previously approved
 image. During that interval the checked-out `uv.lock` mismatch makes the new revision
 non-deployable. CI permits this two-phase state; the deployment wrapper does not.
+
+## Decision authority
+
+The project administrator has final authority for merges, image locking, publication,
+deployment, rollback, and artifact promotion. Required CI status checks remain mandatory.
+Collaborator review is welcome but optional; it is not an approval gate and carries no
+veto over an administrator decision.
 
 ## User workflow
 
