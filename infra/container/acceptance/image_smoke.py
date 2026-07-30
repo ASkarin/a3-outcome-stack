@@ -12,6 +12,7 @@ def main() -> int:
     modules = (
         "lerobot",
         "lerobot.policies.smolvla.modeling_smolvla",
+        "tensorboard",
         "torchcodec",
         "wandb",
     )
@@ -40,6 +41,7 @@ def main() -> int:
         "status": "pass",
         "python_packages": {
             "lerobot": importlib.metadata.version("lerobot"),
+            "tensorboard": importlib.metadata.version("tensorboard"),
             "torch": torch.__version__,
             "torchvision": torchvision.__version__,
         },

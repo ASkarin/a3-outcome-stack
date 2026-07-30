@@ -11,6 +11,7 @@ requires-python = ">=3.12,<3.13"
 [project.optional-dependencies]
 remote-training = [
     "lerobot[smolvla,training] @ git+https://github.com/huggingface/lerobot.git@30da8e687a6dfc617fcd94afc367ac7071c376ce ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "tensorboard==2.21.0 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "torch==2.11.0+cu128 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "torchvision==0.26.0+cu128 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]

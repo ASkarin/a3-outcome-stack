@@ -60,8 +60,8 @@ The script reserves all three GPU UUIDs through `a3-gpu-run`, then records:
 - 100 all-reduce iterations on the preferred first two GPUs;
 - 100 all-reduce iterations across all three GPUs;
 - a three-rank, two-workers-per-rank DataLoader run lasting 600 seconds;
-- `environment.json`, `summary.json`, metrics placeholders, TensorBoard, and W&B
-  offline directories.
+- `environment.json`, `summary.json`, and metrics placeholders;
+- a real TensorBoard event file and a real W&B offline run file.
 
 Retain the raw output even if a check fails. A failed run is diagnostic evidence, not a
 passing environment record.

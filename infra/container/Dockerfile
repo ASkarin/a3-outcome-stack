@@ -86,7 +86,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
         sleep "$((attempt * 5))"; \
     done \
     && /opt/a3/.venv/bin/python -c \
-        "import torch, torchvision; assert torch.__version__ == '2.11.0+cu128'; assert torchvision.__version__ == '0.26.0+cu128'"
+        "import importlib.metadata as m; import tensorboard, torch, torchvision; assert m.version('tensorboard') == '2.21.0'; assert torch.__version__ == '2.11.0+cu128'; assert torchvision.__version__ == '0.26.0+cu128'"
 
 ARG SOURCE_COMMIT=unknown
 ARG UV_LOCK_SHA256=unknown

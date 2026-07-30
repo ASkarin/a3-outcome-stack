@@ -42,6 +42,7 @@ def main() -> int:
         },
         "packages": {
             "lerobot": package_version("lerobot"),
+            "tensorboard": package_version("tensorboard"),
             "torch": package_version("torch"),
             "torchvision": package_version("torchvision"),
             "uv": uv_version.removeprefix("uv "),
