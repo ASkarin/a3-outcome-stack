@@ -90,5 +90,6 @@ authorized keys, personal clones, promoted artifact, and acceptance run remain
 unchanged. Confirm the running container image ID still corresponds to the digest in
 `image.lock`.
 
-Only after these checks and the required GitHub review/CI checks pass may the reviewed
-results be summarized in `evidence/environment_verification.json` and merged.
+Only after these checks and the required CI checks pass, and the administrator approves
+the result, may it be summarized in `evidence/environment_verification.json` and merged.
+Collaborator review is optional and is not an acceptance or merge gate.
