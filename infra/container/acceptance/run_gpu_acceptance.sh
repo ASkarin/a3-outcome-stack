@@ -37,6 +37,7 @@ a3-env-doctor --repo "${REPO_ROOT}" --json \
 nvidia-smi topo -m | tee "${OUTPUT_ROOT}/gpu-topology.txt"
 numactl --hardware | tee "${OUTPUT_ROOT}/numa-topology.txt"
 python "${SCRIPT_DIR}/image_smoke.py" | tee "${OUTPUT_ROOT}/image-smoke.json"
+python "${SCRIPT_DIR}/logging_smoke.py" | tee "${OUTPUT_ROOT}/logging-smoke.json"
 
 for gpu_uuid in "${gpu_uuids[@]}"; do
     CUDA_VISIBLE_DEVICES="${gpu_uuid}" python - "${gpu_uuid}" <<'PY' \

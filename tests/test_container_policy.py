@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 import json
 import re
@@ -44,12 +43,28 @@ def test_compose_has_required_isolation() -> None:
 
 def test_dockerfile_pins_the_training_stack() -> None:
     dockerfile = (CONTAINER / "Dockerfile").read_text(encoding="utf-8")
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert "nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04@sha256:" in dockerfile
     assert "ghcr.io/astral-sh/uv:0.11.32@sha256:" in dockerfile
     assert "ARG PYTHON_VERSION=3.12.13" in dockerfile
+    assert '"tensorboard==2.21.0 ' in pyproject
+    assert "m.version('tensorboard') == '2.21.0'" in dockerfile
     assert "--frozen" in dockerfile
     assert "--no-install-project" in dockerfile
     assert 'ENTRYPOINT ["/usr/bin/tini"' in dockerfile
+
+
+def test_gpu_acceptance_writes_real_offline_logs() -> None:
+    runner = (CONTAINER / "acceptance" / "run_gpu_acceptance.sh").read_text(
+        encoding="utf-8"
+    )
+    smoke = (CONTAINER / "acceptance" / "logging_smoke.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'python "${SCRIPT_DIR}/logging_smoke.py"' in runner
+    assert "events.out.tfevents.*" in smoke
+    assert 'os.environ.get("WANDB_MODE") != "offline"' in smoke
+    assert 'wandb_dir.rglob("run-*.wandb")' in smoke
 
 
 def test_sshd_disables_root_and_password_login() -> None:
@@ -77,7 +92,7 @@ def test_collaborator_supplementary_groups_are_reset() -> None:
     assert 'usermod --groups "${A3_GROUP_NAME},sudo" "${A3_ADMIN_USER}"' in entrypoint
 
 
-def test_image_lock_is_deployable_and_matches_tracked_inputs() -> None:
+def test_image_lock_is_deployable_and_well_formed() -> None:
     lock = (CONTAINER / "image.lock").read_text(encoding="utf-8")
     digest_match = re.search(
         r"^A3_IMAGE_DIGEST=(sha256:[0-9a-f]{64})$",
@@ -99,9 +114,7 @@ def test_image_lock_is_deployable_and_matches_tracked_inputs() -> None:
     assert uv_lock_match is not None
     assert validate_digest(digest_match.group(1)) != f"sha256:{'0' * 64}"
     assert validate_revision(source_match.group(1)) == source_match.group(1)
-    assert uv_lock_match.group(1) == hashlib.sha256(
-        (ROOT / "uv.lock").read_bytes()
-    ).hexdigest()
+    assert re.fullmatch(r"[0-9a-f]{64}", uv_lock_match.group(1))
 
 
 def test_deployment_wrapper_keeps_image_lock_authoritative() -> None:
@@ -212,10 +225,12 @@ def test_artifact_inventory_rejects_manifest_named_symlinks(tmp_path: Path) -> N
 
 def test_image_manifest_writer_imports() -> None:
     path = LIB / "write_image_manifest.py"
+    source = path.read_text(encoding="utf-8")
     spec = importlib.util.spec_from_file_location("write_image_manifest", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    assert '"tensorboard": package_version("tensorboard")' in source
     assert module.BASE_IMAGE.endswith(
         "sha256:ad6d59a3bbf3e82c1c849c9ac09cfc2a3e0bbb8655042fd899be6681b3fe2a85"
     )

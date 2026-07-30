@@ -52,6 +52,11 @@ SHA-256. The administrator records those values in `image.lock` through a separa
 They also reject a mutable repository reference, a checked-out `uv.lock` mismatch, or
 an image whose provenance labels differ from `image.lock`.
 
+Between merging an environment-source change and merging its separate digest-lock PR,
+the tracked `image.lock` intentionally continues to describe the previously approved
+image. During that interval the checked-out `uv.lock` mismatch makes the new revision
+non-deployable. CI permits this two-phase state; the deployment wrapper does not.
+
 ## User workflow
 
 Each user clones the repository into:
