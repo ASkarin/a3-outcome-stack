@@ -1,0 +1,168 @@
+name: remote-training-container
+
+on:
+  pull_request: {}
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/remote-training-container.yml"
+      - ".dockerignore"
+      - ".python-version"
+      - "infra/container/**"
+      - "!infra/container/image.lock"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "src/**"
+      - "tests/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_REPOSITORY: ghcr.io/askarin/a3-outcome-stack-env
+  UV_CONCURRENT_DOWNLOADS: 4
+  UV_HTTP_RETRIES: 5
+  UV_HTTP_TIMEOUT: 300
+  UV_VERSION: 0.11.32
+
+jobs:
+  validate:
+    name: validate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Reclaim runner disk for CUDA dependencies
+        run: infra/container/ci/reclaim_runner_space.sh
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: ${{ env.UV_VERSION }}
+      - name: Verify dependency lock
+        run: uv lock --check
+      - name: Install the locked environment
+        shell: bash
+        run: |
+          git config --global http.version HTTP/1.1
+          for attempt in 1 2 3; do
+            if uv sync --frozen --no-install-project --extra remote-training --group dev; then
+              exit 0
+            fi
+            sleep "$((attempt * 5))"
+          done
+          exit 1
+      - name: Run project tests
+        run: uv run --no-sync pytest
+      - name: Run Ruff
+        run: >-
+          uv run --no-sync ruff check
+          src
+          tests
+          infra/container/lib
+          infra/container/bin/a3-artifact-fetch
+          infra/container/bin/a3-artifact-promote
+          infra/container/bin/a3-env-doctor
+          infra/container/bin/a3-gpu-run
+          infra/container/acceptance
+      - name: Validate shell syntax
+        run: |
+          bash -n infra/container/a3-compose
+          bash -n infra/container/entrypoint.sh
+          bash -n infra/container/profile.sh
+          bash -n infra/container/acceptance/run_gpu_acceptance.sh
+      - name: Validate container policy
+        run: uv run --no-sync pytest tests/test_container_policy.py
+
+  container:
+    name: container-build
+    runs-on: ubuntu-24.04
+    needs: validate
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Reclaim runner disk for the CUDA image
+        run: infra/container/ci/reclaim_runner_space.sh
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - name: Calculate uv.lock identity
+        id: lock
+        shell: bash
+        run: echo "sha256=$(sha256sum uv.lock | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+      - name: Build without registry credentials
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: infra/container/Dockerfile
+          platforms: linux/amd64
+          push: false
+          tags: ${{ env.IMAGE_REPOSITORY }}:git-${{ github.sha }}
+          build-args: |
+            SOURCE_COMMIT=${{ github.sha }}
+            UV_LOCK_SHA256=${{ steps.lock.outputs.sha256 }}
+          cache-from: type=gha,scope=a3-remote-training
+          cache-to: type=gha,mode=min,scope=a3-remote-training,timeout=5m,ignore-error=true
+          provenance: mode=max
+          sbom: true
+
+  publish:
+    name: publish-image
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    needs: container
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Reclaim runner disk for the CUDA image
+        run: infra/container/ci/reclaim_runner_space.sh
+      - name: Calculate uv.lock identity
+        id: lock
+        shell: bash
+        run: echo "sha256=$(sha256sum uv.lock | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - name: Log in to GHCR
+        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the immutable image
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: infra/container/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE_REPOSITORY }}:git-${{ github.sha }}
+          build-args: |
+            SOURCE_COMMIT=${{ github.sha }}
+            UV_LOCK_SHA256=${{ steps.lock.outputs.sha256 }}
+          cache-from: type=gha,scope=a3-remote-training
+          cache-to: type=gha,mode=min,scope=a3-remote-training,timeout=5m,ignore-error=true
+          provenance: mode=max
+          sbom: true
+      - name: Attest the published image
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-name: ${{ env.IMAGE_REPOSITORY }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - name: Write digest-lock candidate
+        shell: bash
+        run: |
+          {
+            echo "A3_IMAGE_REPOSITORY=${IMAGE_REPOSITORY}"
+            echo "A3_IMAGE_DIGEST=${{ steps.build.outputs.digest }}"
+            echo "A3_IMAGE_SOURCE_COMMIT=${GITHUB_SHA}"
+            echo "A3_BASE_IMAGE_DIGEST=sha256:ad6d59a3bbf3e82c1c849c9ac09cfc2a3e0bbb8655042fd899be6681b3fe2a85"
+            echo "A3_UV_LOCK_SHA256=${{ steps.lock.outputs.sha256 }}"
+          } > image.lock.candidate
+          cat image.lock.candidate >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload digest-lock candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: image-lock-${{ github.sha }}
+          path: image.lock.candidate
+          if-no-files-found: error
+          retention-days: 30

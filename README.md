@@ -2,7 +2,7 @@
 
 A3 OutcomeStack is a reproducible real-robot learning stack for EduLite A3, spanning data capture, ACT/VLA training, deployment, evaluation, and action-outcome prediction. This repository is the implementation and experiment evidence source. Planning, decisions, and the canonical preregistration live in the local control repository; the frozen preregistration snapshot in this repository is byte-identical and hash-bound to every formal experiment.
 
-The canonical project slug and Python distribution are `a3-outcome-stack`; the Python namespace is `a3_outcome_stack`. The legacy `embodied_ai` import and `embodied-ai` CLI remain compatibility aliases for reproducing Stage 0/1A records and must not be used by new code.
+The canonical project slug and Python distribution are `a3-outcome-stack`; the Python namespace and CLI are `a3_outcome_stack` and `a3-outcome-stack`. Historical Stage 0/1A commits and evidence remain available through Git, but their former names are not active aliases on the current branch.
 
 ## Evidence model
 
@@ -53,9 +53,19 @@ PYTHONPATH=src python -m a3_outcome_stack.ops robot doctor --root . --upstream-c
 
 ## Verification
 
-Use the existing `pytorch` conda environment; no dependency installation or network access is required:
+The supported remote training environment is the project container defined under
+`infra/container/`. It uses Python 3.12, the repository `uv.lock`, CUDA 12.8 PyTorch,
+and a commit-pinned LeRobot installation. The former shared Conda environment is not a
+supported entry point.
+
+Each collaborator keeps a separate clone under their persistent home. From a clone,
+run project code without modifying the root-owned container environment:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest -p no:cacheprovider
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m a3_outcome_stack.ops doctor --root .
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /opt/a3/.venv/bin/python -m pytest -p no:cacheprovider
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /opt/a3/.venv/bin/python -m a3_outcome_stack.ops doctor --root .
 ```
+
+Container construction, deployment inputs, artifact promotion, GPU locking, and
+acceptance checks are documented in `infra/container/README.md`. Formal training uses
+only immutable image digests and promoted local model/dataset revisions.

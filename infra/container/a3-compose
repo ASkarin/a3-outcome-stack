@@ -1,0 +1,215 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly LOCK_FILE="${SCRIPT_DIR}/image.lock"
+readonly ENV_FILE="${SCRIPT_DIR}/.env"
+readonly COMPOSE_FILE="${SCRIPT_DIR}/compose.yaml"
+readonly UV_LOCK_FILE="${SCRIPT_DIR}/../../uv.lock"
+readonly ZERO_DIGEST="sha256:0000000000000000000000000000000000000000000000000000000000000000"
+readonly BASE_IMAGE_DIGEST="sha256:ad6d59a3bbf3e82c1c849c9ac09cfc2a3e0bbb8655042fd899be6681b3fe2a85"
+
+fail() {
+    echo "a3-compose: $*" >&2
+    exit 2
+}
+
+require_command() {
+    command -v "$1" >/dev/null 2>&1 || fail "required command is missing: $1"
+}
+
+require_var() {
+    local name="$1"
+    test -n "${!name:-}" || fail "required variable ${name} is empty"
+    [[ "${!name}" != *CHANGE_ME* ]] || fail "required variable ${name} still contains CHANGE_ME"
+}
+
+validate_host_path() {
+    local name="$1"
+    local value="${!name}"
+    [[ "${value}" == /* ]] || fail "${name} must be an absolute host path"
+    [[ "${value}" != "/" ]] || fail "${name} must not be the host root"
+    [[ ! -L "${value}" ]] || fail "${name} must not be a symbolic link"
+    [[ -d "${value}" ]] || fail "${name} must name an existing host directory"
+}
+
+validate_user_name() {
+    local name="$1"
+    local value="${!name}"
+    [[ "${value}" =~ ^[a-z_][a-z0-9_-]{0,30}$ ]] \
+        || fail "${name} is not a valid Linux user name"
+}
+
+validate_id() {
+    local name="$1"
+    local value="${!name}"
+    [[ "${value}" =~ ^[0-9]+$ ]] && (( value >= 1000 && value <= 60000 )) \
+        || fail "${name} must be an integer from 1000 through 60000"
+}
+
+verify_local_image() {
+    local image_ref="${A3_IMAGE_REPOSITORY}@${A3_IMAGE_DIGEST}"
+    local actual_source_commit
+    local actual_base_digest
+    local actual_uv_lock_sha256
+
+    docker image inspect "${image_ref}" >/dev/null 2>&1 \
+        || fail "locked image is not present locally: ${image_ref}"
+    actual_source_commit="$(
+        docker image inspect \
+            --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
+            "${image_ref}"
+    )"
+    actual_base_digest="$(
+        docker image inspect \
+            --format '{{ index .Config.Labels "ai.a3-outcome-stack.base-digest" }}' \
+            "${image_ref}"
+    )"
+    actual_uv_lock_sha256="$(
+        docker image inspect \
+            --format '{{ index .Config.Labels "ai.a3-outcome-stack.uv-lock-sha256" }}' \
+            "${image_ref}"
+    )"
+    [[ "${actual_source_commit}" == "${A3_IMAGE_SOURCE_COMMIT}" ]] \
+        || fail "image source commit label does not match image.lock"
+    [[ "${actual_base_digest}" == "${A3_BASE_IMAGE_DIGEST}" ]] \
+        || fail "image base digest label does not match image.lock"
+    [[ "${actual_uv_lock_sha256}" == "${A3_UV_LOCK_SHA256}" ]] \
+        || fail "image uv.lock label does not match image.lock"
+}
+
+validate_deploy_lock() {
+    local actual_uv_lock_sha256
+
+    [[ -f "${UV_LOCK_FILE}" ]] || fail "missing ${UV_LOCK_FILE}"
+    [[ "${A3_IMAGE_REPOSITORY}" != *:* && "${A3_IMAGE_REPOSITORY}" != *@* ]] \
+        || fail "image repository must not contain a mutable tag or embedded digest"
+    [[ "${A3_IMAGE_DIGEST}" != "${ZERO_DIGEST}" ]] \
+        || fail "image.lock is pending the first GHCR digest"
+    [[ "${A3_IMAGE_SOURCE_COMMIT}" =~ ^[0-9a-f]{40}$ ]] \
+        || fail "image source commit is not locked"
+    [[ "${A3_BASE_IMAGE_DIGEST}" == "${BASE_IMAGE_DIGEST}" ]] \
+        || fail "base image digest does not match the approved CUDA base"
+    [[ "${A3_UV_LOCK_SHA256}" =~ ^[0-9a-f]{64}$ ]] \
+        || fail "uv.lock SHA-256 is not locked"
+    require_command sha256sum
+    actual_uv_lock_sha256="$(sha256sum "${UV_LOCK_FILE}" | awk '{print $1}')"
+    [[ "${actual_uv_lock_sha256}" == "${A3_UV_LOCK_SHA256}" ]] \
+        || fail "checked-out uv.lock does not match image.lock"
+}
+
+validate_runtime_inputs() {
+    local key_file
+    local key_path
+    local ssh_port
+
+    for variable in A3_WORKSPACE_HOST A3_SSH_HOST_KEYS_HOST A3_AUTH_KEYS_HOST; do
+        validate_host_path "${variable}"
+    done
+    for variable in A3_ADMIN_USER A3_COLLAB_USER; do
+        validate_user_name "${variable}"
+    done
+    for variable in A3_ADMIN_UID A3_COLLAB_UID A3_GROUP_GID; do
+        validate_id "${variable}"
+    done
+
+    [[ "${A3_ADMIN_USER}" != "${A3_COLLAB_USER}" ]] \
+        || fail "admin and collaborator user names must differ"
+    [[ "${A3_ADMIN_UID}" != "${A3_COLLAB_UID}" ]] \
+        || fail "admin and collaborator UIDs must differ"
+    [[ "${A3_GROUP_GID}" != "${A3_ADMIN_UID}" && "${A3_GROUP_GID}" != "${A3_COLLAB_UID}" ]] \
+        || fail "project GID must differ from both private user IDs"
+    for key_file in admin_authorized_keys collaborator_authorized_keys; do
+        key_path="${A3_AUTH_KEYS_HOST}/${key_file}"
+        [[ ! -L "${key_path}" && -f "${key_path}" && -s "${key_path}" ]] \
+            || fail "missing regular non-empty public-key file: ${key_path}"
+    done
+    [[ "${A3_SSH_BIND}" =~ ^[^[:space:]]+:[0-9]{1,5}$ ]] \
+        || fail "A3_SSH_BIND must have the form address:port"
+    ssh_port="${A3_SSH_BIND##*:}"
+    (( ssh_port >= 1 && ssh_port <= 65535 )) \
+        || fail "SSH port must be from 1 through 65535"
+}
+
+[[ -f "${LOCK_FILE}" ]] || fail "missing ${LOCK_FILE}"
+[[ -f "${ENV_FILE}" ]] || fail "copy env.example to ${ENV_FILE} and fill every value"
+
+if stat --version >/dev/null 2>&1; then
+    mode="$(stat -c '%a' "${ENV_FILE}")"
+    [[ "${mode}" == "600" ]] || fail "${ENV_FILE} must have mode 0600, found ${mode}"
+fi
+
+set -a
+# Both files are trusted administrator-controlled shell assignments. The tracked
+# lock is sourced last so .env cannot override an immutable image input.
+source "${ENV_FILE}"
+source "${LOCK_FILE}"
+set +a
+
+for variable in \
+    A3_IMAGE_REPOSITORY \
+    A3_IMAGE_DIGEST \
+    A3_IMAGE_SOURCE_COMMIT \
+    A3_BASE_IMAGE_DIGEST \
+    A3_UV_LOCK_SHA256 \
+    A3_WORKSPACE_HOST \
+    A3_SSH_HOST_KEYS_HOST \
+    A3_AUTH_KEYS_HOST \
+    A3_SSH_BIND \
+    A3_ADMIN_USER \
+    A3_ADMIN_UID \
+    A3_COLLAB_USER \
+    A3_COLLAB_UID \
+    A3_GROUP_GID
+do
+    require_var "${variable}"
+done
+
+[[ "${A3_IMAGE_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]] \
+    || fail "image digest must be an immutable sha256 digest"
+
+action="${1:-config}"
+shift || true
+
+case "${action}" in
+    config)
+        validate_runtime_inputs
+        require_command docker
+        exec docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" config "$@"
+        ;;
+    pull | up | restart)
+        validate_runtime_inputs
+        validate_deploy_lock
+        require_command docker
+        if [[ "${action}" == "pull" ]]; then
+            docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" pull "$@"
+            verify_local_image
+        elif [[ "${action}" == "up" ]]; then
+            docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" pull
+            verify_local_image
+            exec docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d "$@"
+        else
+            docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" pull
+            verify_local_image
+            exec docker compose \
+                --env-file "${ENV_FILE}" \
+                -f "${COMPOSE_FILE}" \
+                up -d --force-recreate "$@"
+        fi
+        ;;
+    down | ps | logs)
+        require_command docker
+        exec docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "${action}" "$@"
+        ;;
+    doctor)
+        require_command docker
+        exec docker exec \
+            --user "${A3_ADMIN_USER}" \
+            --workdir /opt/a3/build \
+            a3-outcome-stack-training \
+            a3-env-doctor --repo /opt/a3/build --json "$@"
+        ;;
+    *)
+        fail "unsupported action ${action}; use config, pull, up, restart, down, ps, logs, or doctor"
+        ;;
+esac

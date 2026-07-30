@@ -6,11 +6,23 @@ build-backend = "setuptools.build_meta"
 name = "a3-outcome-stack"
 version = "0.2.0"
 description = "A reproducible EduLite A3 learning stack with action-outcome evaluation"
-requires-python = ">=3.11"
+requires-python = ">=3.12,<3.13"
+
+[project.optional-dependencies]
+remote-training = [
+    "lerobot[smolvla,training] @ git+https://github.com/huggingface/lerobot.git@30da8e687a6dfc617fcd94afc367ac7071c376ce ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "torch==2.11.0+cu128 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "torchvision==0.26.0+cu128 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
 
 [project.scripts]
 a3-outcome-stack = "a3_outcome_stack.ops.cli:main"
-embodied-ai = "a3_outcome_stack.ops.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4,<9",
+    "ruff>=0.11,<1",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -19,3 +31,27 @@ where = ["src"]
 pythonpath = ["src"]
 testpaths = ["tests"]
 
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.uv]
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+torchvision = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
