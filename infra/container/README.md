@@ -1,83 +1,98 @@
 # Remote training container
 
-This directory defines the only supported remote training environment for A3 OutcomeStack.
-It is a rebuildable, digest-pinned CUDA container for two SSH users and three dedicated
-RTX 3090 GPUs. It does not reuse the former shared Conda environment and does not include
-camera, CAN, gamepad, ROS 2, or local-controller dependencies.
+This directory defines the A3 OutcomeStack training container. It provides two SSH
+accounts, three RTX 3090 GPUs, a persistent shared Python environment, personal Git
+clones and run directories, and administrator-controlled model/dataset releases. It
+does not include camera, CAN, gamepad, ROS 2, or local-controller dependencies.
 
-## Tracked inputs
+## Runtime model
 
-- `Dockerfile`: CUDA 12.8, uv-managed Python 3.12, locked project dependencies, and
-  root-owned `/opt/a3/.venv`.
-- `compose.yaml`: three GPUs, 16 GiB `/dev/shm`, SSH-only ingress, persistent project
-  storage, and no privileged, host-IPC, or Docker-socket access.
-- `image.lock`: the only deployable GHCR digest. The zero digest is deliberately
-  non-deployable until the first approved image build.
-- `entrypoint.sh`: creates the two accounts, installs public keys, enforces ACLs, and
-  starts key-only SSH.
-- `bin/`: environment inspection, GPU reservation, mirror-only artifact acquisition,
-  and administrator-only immutable promotion.
+- `/opt/a3/.venv` is the base-image seed used only to initialize a new workspace.
+- `/workspace/a3/python-env` is the persistent shared environment used by normal
+  logins and formal runs.
+- The administrator owns and may modify the shared environment. The collaborator may
+  read and execute it but cannot modify it.
+- `/workspace/a3/bin` contains the stable A3 commands and precedes the shared
+  environment on `PATH`.
+- `a3-python install`, `uninstall`, `list`, and `snapshot` manage the shared
+  environment. Mutations and snapshots record the operator, resolved package list,
+  timestamp, and `pip freeze --all` SHA-256 under
+  `/workspace/a3/python-env-history`.
+- A missing Python package is installed in place; it does not require a container
+  image build or pull request.
+
+The collaborator may create an experimental venv inside their own home. Such a venv is
+personal and is not the environment used by formal `a3-gpu-run` jobs.
+
+## Tracked files
+
+- `Dockerfile`: optional CUDA 12.8 base image and the seed Python 3.12 environment.
+- `compose.yaml`: three GPUs, 16 GiB `/dev/shm`, SSH-only ingress, persistent storage,
+  and no privileged, host-IPC, or Docker-socket access.
+- `entrypoint.sh`: creates accounts, installs public keys, enforces ACLs, initializes
+  the shared Python environment, and starts key-only SSH.
+- `init-shared-python.sh`: copies the seed environment once and installs the
+  persistent commands and profile.
+- `bin/`: Python environment management, environment inspection, GPU reservation,
+  mirror-only artifact acquisition, and administrator-only release promotion.
 
 ## Administrator deployment inputs
 
 1. Copy `env.example` to `.env`.
-2. Replace every `CHANGE_ME` value and set mode `0600`.
-3. Create three explicit host directories:
-   - the project workspace mounted at `/workspace`;
-   - persistent SSH host keys;
-   - a read-only authorized-key directory containing exactly
-     `admin_authorized_keys` and `collaborator_authorized_keys`.
-   The two user names and all three UID/GID values must be distinct and must not
-   collide with identities already present in the image.
-4. Authenticate Docker to GHCR with a token limited to `read:packages`.
-5. Run `./a3-compose config` before any pull or startup.
+2. Set `A3_IMAGE` to the image reference the administrator wants Compose to use.
+3. Replace every `CHANGE_ME` value and set the file mode to `0600`.
+4. Create the workspace, SSH host-key, and authorized-key host directories.
+5. Put `admin_authorized_keys` and `collaborator_authorized_keys` in the authorized-key
+   directory.
+6. Run `./a3-compose config`.
 
 Real usernames, IP addresses, ports, host paths, private keys, and service tokens never
 belong in Git.
 
-## Image publication
+The wrapper commands have deliberately separate effects:
 
-Pull requests validate the lock, tests, static container policy, and Docker build.
-After an environment change merges to `main`, GitHub Actions publishes:
-
-```text
-ghcr.io/askarin/a3-outcome-stack-env:git-<40-character-source-commit>
+```bash
+./a3-compose config
+./a3-compose pull       # explicit image download
+./a3-compose up         # create/start without an automatic pull
+./a3-compose restart    # ordinary restart; no pull or recreation
+./a3-compose recreate   # explicit force-recreation
 ```
 
-The GHCR package must remain private and linked to the repository. Verify its visibility
-and grant the collaborator read access before the administrator approves the first
-digest-lock PR.
-The workflow reports the immutable digest, source commit, base digest, and `uv.lock`
-SHA-256. The administrator records those values in `image.lock` through a separate PR.
-`a3-compose pull`, `up`, and `restart` reject the zero placeholder or incomplete locks.
-They also reject a mutable repository reference, a checked-out `uv.lock` mismatch, or
-an image whose provenance labels differ from `image.lock`.
+## Optional base-image publication
 
-Between merging an environment-source change and merging its separate digest-lock PR,
-the tracked `image.lock` intentionally continues to describe the previously approved
-image. During that interval the checked-out `uv.lock` mismatch makes the new revision
-non-deployable. CI permits this two-phase state; the deployment wrapper does not.
+Ordinary pull requests run `validate` and a lightweight Compose configuration check
+named `container-build`; they do not build a CUDA image. Merging a dependency, source,
+test, or documentation change does not publish an image.
 
-## Decision authority
-
-The project administrator has final authority for merges, image locking, publication,
-deployment, rollback, and artifact promotion. Required CI status checks remain mandatory.
-Collaborator review is welcome but optional; it is not an approval gate and carries no
-veto over an administrator decision.
+An administrator may manually dispatch `remote-training-container` with
+`publish_image=true` to refresh the optional GHCR base image. That job still produces
+SBOM and provenance metadata, but it does not create a second deployment-approval pull
+request or deploy automatically. Updating `A3_IMAGE` and recreating the container are
+separate administrator decisions.
 
 ## User workflow
 
-Each user clones the repository into:
+Each user keeps an independent clone:
 
 ```text
 /workspace/users/<user>/src/a3-outcome-stack
 ```
 
-Project code runs from that clone without altering `/opt/a3/.venv`:
+Useful commands:
 
 ```bash
-PYTHONPATH=src python -m pytest
+python --version
+a3-python list
 a3-env-doctor --repo "$PWD" --json
+PYTHONPATH=src python -m pytest
+```
+
+The administrator may install a package immediately:
+
+```bash
+a3-python install <package>
+a3-python snapshot
 ```
 
 Formal GPU commands use exact GPU UUIDs:
@@ -93,12 +108,12 @@ a3-gpu-run \
 ```
 
 The wrapper refuses dirty Git worktrees by default, obtains cooperative `flock` locks,
-sets offline Hugging Face and W&B paths, and writes the run environment and terminal
-summary under the invoking user's run directory.
+sets offline Hugging Face and W&B paths, and records the actual Python executable plus
+the complete live package list and its SHA-256 in every run.
 
 ## Artifact acquisition and promotion
 
-Downloads use `hf-mirror.com` only in the acquisition command and require an exact
+Downloads use `hf-mirror.com` only inside the acquisition command and require an exact
 40-character revision:
 
 ```bash
@@ -108,32 +123,23 @@ a3-artifact-fetch \
   --type model
 ```
 
-The command downloads into the invoking user's staging directory and emits a manifest
-with every file size and SHA-256. After review, only the administrator promotes it:
+After review, only the administrator promotes the result:
 
 ```bash
 sudo a3-artifact-promote \
   --manifest /workspace/a3/staging/<user>/models/<artifact>/a3-artifact-manifest.json
 ```
 
-Promotion re-hashes the source and copy, refuses symlinks and overwrites, then makes the
-new release root-owned and group-read-only. Formal training sets
-`HF_HUB_OFFLINE=1` and consumes the promoted local path.
+Promotion re-hashes the source and copy, refuses symlinks and overwrites, and makes the
+new release root-owned and group-read-only. Formal training uses promoted local paths
+with `HF_HUB_OFFLINE=1`.
 
-## Acceptance boundary
+## Decision authority and acceptance
 
-Do not create `evidence/environment_verification.json` or call the environment complete
-until all CI checks, two-user permission checks, container restart persistence, three
-single-GPU allocations, two- and three-GPU NCCL checks, a 10-minute DataLoader check,
-artifact offline reload, and offline experiment logging have passed on the actual host.
-The exact order and pass/fail boundary are in `acceptance/README.md`.
+The administrator has final authority for merges, Python package changes, optional
+base-image publication, deployment, rollback, and artifact promotion. Collaborator
+review is welcome but is not an approval gate. Required CI checks still apply to code
+changes.
 
-After the two-user permission checks, the administrator runs the GPU portion from the
-canonical checkout:
-
-```bash
-infra/container/acceptance/run_gpu_acceptance.sh
-```
-
-It writes raw acceptance outputs under the administrator's run directory. Review those
-files before creating the immutable environment verification evidence.
+The exact account, shared-Python, GPU, logging, artifact, and restart checks are in
+`acceptance/README.md`.

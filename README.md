@@ -54,18 +54,23 @@ PYTHONPATH=src python -m a3_outcome_stack.ops robot doctor --root . --upstream-c
 ## Verification
 
 The supported remote training environment is the project container defined under
-`infra/container/`. It uses Python 3.12, the repository `uv.lock`, CUDA 12.8 PyTorch,
-and a commit-pinned LeRobot installation. The former shared Conda environment is not a
-supported entry point.
+`infra/container/`. Its base seed uses Python 3.12, the repository `uv.lock`, CUDA 12.8
+PyTorch, and a commit-pinned LeRobot installation. Normal logins use the persistent
+shared environment at `/workspace/a3/python-env`; the administrator can install a
+missing package in place with `a3-python install` without rebuilding the container.
+The former shared Conda environment is not a supported entry point.
 
 Each collaborator keeps a separate clone under their persistent home. From a clone,
-run project code without modifying the root-owned container environment:
+run project code with the shared environment:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /opt/a3/.venv/bin/python -m pytest -p no:cacheprovider
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /opt/a3/.venv/bin/python -m a3_outcome_stack.ops doctor --root .
+python --version
+a3-python list
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest -p no:cacheprovider
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m a3_outcome_stack.ops doctor --root .
 ```
 
-Container construction, deployment inputs, artifact promotion, GPU locking, and
-acceptance checks are documented in `infra/container/README.md`. Formal training uses
-only immutable image digests and promoted local model/dataset revisions.
+Python administration, optional base-image construction, deployment inputs, artifact
+promotion, GPU locking, and acceptance checks are documented in
+`infra/container/README.md`. Formal training records the live Python package list and
+uses promoted local model/dataset revisions.

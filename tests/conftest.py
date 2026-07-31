@@ -22,7 +22,7 @@ def experiment_source():
         "config_path": "configs/act/task_a.json",
         "config_sha256": HASH_C,
         "seed": 7,
-        "hardware": "laboratory:3xRTX3090",
+        "hardware": "a3-training:3xRTX3090",
         "max_steps": 100,
         "max_wallclock_seconds": 3600,
         "eval_interval_steps": 10,
@@ -59,4 +59,3 @@ def freeze_source():
         "exclusion_rules": ["external_power_failure"],
         "final_test_manifest_sha256": HASH_C,
     }
-

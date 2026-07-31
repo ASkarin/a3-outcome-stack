@@ -2,9 +2,13 @@ name: a3-outcome-stack
 
 services:
   training:
-    image: "${A3_IMAGE_REPOSITORY:?set by image.lock}@${A3_IMAGE_DIGEST:?set by image.lock}"
+    image: "${A3_IMAGE:?set A3_IMAGE in .env}"
     container_name: a3-outcome-stack-training
     hostname: a3-training
+    entrypoint:
+      - /usr/bin/tini
+      - --
+      - /opt/a3/container-runtime/entrypoint.sh
     restart: unless-stopped
     gpus:
       - driver: nvidia
@@ -30,6 +34,36 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: ./entrypoint.sh
+        target: /opt/a3/container-runtime/entrypoint.sh
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./init-shared-python.sh
+        target: /opt/a3/container-runtime/init-shared-python.sh
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./profile.sh
+        target: /opt/a3/container-runtime/profile.sh
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./bin
+        target: /opt/a3/container-runtime/bin
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./lib
+        target: /opt/a3/container-runtime/lib
+        read_only: true
+        bind:
+          create_host_path: false
     environment:
       A3_ADMIN_USER: "${A3_ADMIN_USER:?set A3_ADMIN_USER in .env}"
       A3_ADMIN_UID: "${A3_ADMIN_UID:?set A3_ADMIN_UID in .env}"
@@ -37,7 +71,6 @@ services:
       A3_COLLAB_UID: "${A3_COLLAB_UID:?set A3_COLLAB_UID in .env}"
       A3_GROUP_GID: "${A3_GROUP_GID:?set A3_GROUP_GID in .env}"
       A3_GROUP_NAME: a3
-      A3_IMAGE_DIGEST: "${A3_IMAGE_DIGEST}"
       HF_HUB_DISABLE_TELEMETRY: "1"
       TOKENIZERS_PARALLELISM: "false"
       TORCH_NCCL_ASYNC_ERROR_HANDLING: "1"
@@ -53,7 +86,7 @@ services:
         soft: 67108864
         hard: 67108864
     healthcheck:
-      test: ["CMD-SHELL", "/usr/sbin/sshd -t -f /run/sshd_config && test -x /opt/a3/.venv/bin/python"]
+      test: ["CMD-SHELL", "/usr/sbin/sshd -t -f /run/sshd_config && test -x /workspace/a3/python-env/bin/python"]
       interval: 30s
       timeout: 5s
       retries: 3

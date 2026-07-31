@@ -1,4 +1,4 @@
-#!/opt/a3/.venv/bin/python
+#!/workspace/a3/python-env/bin/python
 from __future__ import annotations
 
 import argparse
@@ -13,6 +13,7 @@ os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 os.environ["HF_HUB_OFFLINE"] = "0"
 
 for candidate in (
+    Path("/workspace/a3/lib"),
     Path("/usr/local/lib/a3-container"),
     Path(__file__).resolve().parents[1] / "lib",
 ):

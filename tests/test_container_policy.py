@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import re
 import sys
@@ -20,7 +19,6 @@ from a3_container_common import (  # noqa: E402
     inventory_identity,
     load_json,
     load_runtime_config,
-    validate_digest,
     validate_repo_id,
     validate_revision,
     validate_run_id,
@@ -39,7 +37,9 @@ def test_compose_has_required_isolation() -> None:
     assert "${A3_WORKSPACE_HOST" in compose
     assert "${A3_SSH_HOST_KEYS_HOST" in compose
     assert "${A3_AUTH_KEYS_HOST" in compose
-    assert compose.count("create_host_path: false") == 3
+    assert "${A3_IMAGE:" in compose
+    assert "/opt/a3/container-runtime/entrypoint.sh" in compose
+    assert compose.count("create_host_path: false") == 8
 
 
 def test_dockerfile_pins_the_training_stack() -> None:
@@ -52,16 +52,16 @@ def test_dockerfile_pins_the_training_stack() -> None:
     assert "m.version('tensorboard') == '2.21.0'" in dockerfile
     assert "--frozen" in dockerfile
     assert "--no-install-project" in dockerfile
+    assert "a3-init-shared-python" in dockerfile
+    assert "chmod -R a-w" not in dockerfile
+    assert "PYTHONNOUSERSITE" not in dockerfile
+    assert "UV_LOCK_SHA256" not in dockerfile
     assert 'ENTRYPOINT ["/usr/bin/tini"' in dockerfile
 
 
 def test_gpu_acceptance_writes_real_offline_logs() -> None:
-    runner = (CONTAINER / "acceptance" / "run_gpu_acceptance.sh").read_text(
-        encoding="utf-8"
-    )
-    smoke = (CONTAINER / "acceptance" / "logging_smoke.py").read_text(
-        encoding="utf-8"
-    )
+    runner = (CONTAINER / "acceptance" / "run_gpu_acceptance.sh").read_text(encoding="utf-8")
+    smoke = (CONTAINER / "acceptance" / "logging_smoke.py").read_text(encoding="utf-8")
     assert 'python "${SCRIPT_DIR}/logging_smoke.py"' in runner
     assert "events.out.tfevents.*" in smoke
     assert 'os.environ.get("WANDB_MODE") != "offline"' in smoke
@@ -76,18 +76,22 @@ def test_sshd_disables_root_and_password_login() -> None:
     assert "AuthenticationMethods publickey" in config
 
 
-def test_ssh_shells_load_the_locked_environment() -> None:
+def test_ssh_shells_load_the_mutable_shared_environment() -> None:
     entrypoint = (CONTAINER / "entrypoint.sh").read_text(encoding="utf-8")
     profile = (CONTAINER / "profile.sh").read_text(encoding="utf-8")
-    doctor = (CONTAINER / "bin" / "a3-env-doctor").read_text(encoding="utf-8")
+    initializer = (CONTAINER / "init-shared-python.sh").read_text(encoding="utf-8")
     assert "install_shell_startup" in entrypoint
     assert "enable_public_key_account" in entrypoint
     assert "| chpasswd" in entrypoint
     assert '"u:${A3_ADMIN_USER}:rwx,u:${A3_COLLAB_USER}:r-x,m::rwx"' in entrypoint
-    assert "source /etc/profile.d/a3.sh" in entrypoint
-    assert 'export PATH="/opt/a3/.venv/bin:${PATH}"' in profile
-    assert 'runtime.get("image_digest", "")' in doctor
-    assert 'os.environ.get("A3_IMAGE_DIGEST"' not in doctor
+    assert "source /workspace/a3/profile.sh" in entrypoint
+    assert 'export PATH="/workspace/a3/bin:${A3_SHARED_PYTHON_ENV}/bin:${PATH}"' in profile
+    assert "unset PYTHONNOUSERSITE" in profile
+    assert 'SHARED_ENV="${A3_ROOT}/python-env"' in initializer
+    assert 'rsync -a "${SEED_ENV}/" "${temporary}/"' in initializer
+    assert '"${temporary}/bin/python" -m ensurepip --upgrade' in initializer
+    assert 'chown -R "${A3_ADMIN_USER}:${A3_GROUP_NAME}"' in initializer
+    assert "g-w" in initializer
 
 
 def test_collaborator_supplementary_groups_are_reset() -> None:
@@ -96,37 +100,12 @@ def test_collaborator_supplementary_groups_are_reset() -> None:
     assert 'usermod --groups "${A3_GROUP_NAME},sudo" "${A3_ADMIN_USER}"' in entrypoint
 
 
-def test_image_lock_is_deployable_and_well_formed() -> None:
-    lock = (CONTAINER / "image.lock").read_text(encoding="utf-8")
-    digest_match = re.search(
-        r"^A3_IMAGE_DIGEST=(sha256:[0-9a-f]{64})$",
-        lock,
-        flags=re.MULTILINE,
-    )
-    source_match = re.search(
-        r"^A3_IMAGE_SOURCE_COMMIT=([0-9a-f]{40})$",
-        lock,
-        flags=re.MULTILINE,
-    )
-    uv_lock_match = re.search(
-        r"^A3_UV_LOCK_SHA256=([0-9a-f]{64})$",
-        lock,
-        flags=re.MULTILINE,
-    )
-    assert digest_match is not None
-    assert source_match is not None
-    assert uv_lock_match is not None
-    assert validate_digest(digest_match.group(1)) != f"sha256:{'0' * 64}"
-    assert validate_revision(source_match.group(1)) == source_match.group(1)
-    assert re.fullmatch(r"[0-9a-f]{64}", uv_lock_match.group(1))
-
-
-def test_deployment_wrapper_keeps_image_lock_authoritative() -> None:
+def test_deployment_wrapper_uses_an_ordinary_image_reference() -> None:
     wrapper = (CONTAINER / "a3-compose").read_text(encoding="utf-8")
-    assert wrapper.index('source "${ENV_FILE}"') < wrapper.index('source "${LOCK_FILE}"')
-    assert "checked-out uv.lock does not match image.lock" in wrapper
-    assert "image source commit label does not match image.lock" in wrapper
-    assert "image repository must not contain a mutable tag" in wrapper
+    assert 'source "${ENV_FILE}"' in wrapper
+    assert "docker compose --env-file" in wrapper
+    assert 'restart "$@"' in wrapper
+    assert "recreate)" in wrapper
     assert "up -d --force-recreate" in wrapper
     assert '--user "${A3_ADMIN_USER}"' in wrapper
     assert "must name an existing host directory" in wrapper
@@ -143,28 +122,40 @@ def test_release_area_is_root_owned_and_user_read_only() -> None:
     assert '(A3_ROOT / "releases" / "datasets", False)' in doctor
 
 
+def test_python_admin_command_and_gpu_runs_record_live_packages() -> None:
+    python_admin = (CONTAINER / "bin" / "a3-python").read_text(encoding="utf-8")
+    gpu_run = (CONTAINER / "bin" / "a3-gpu-run").read_text(encoding="utf-8")
+    assert "only the project administrator" in python_admin
+    assert '"install", "uninstall", "list", "snapshot"' in python_admin
+    assert '"resolved_packages"' in python_admin
+    assert '"after_freeze_sha256"' in python_admin
+    assert '"python-packages.txt"' in gpu_run
+    assert '"packages_sha256"' in gpu_run
+    assert '"executable": os.path.abspath(sys.executable)' in gpu_run
+
+
 def test_pr_container_build_has_no_registry_write_credentials() -> None:
-    workflow = (
-        ROOT / ".github" / "workflows" / "remote-training-container.yml"
-    ).read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "remote-training-container.yml").read_text(
+        encoding="utf-8"
+    )
     container_job = workflow.split("\n  container:", maxsplit=1)[1].split(
         "\n  publish:", maxsplit=1
     )[0]
     publish_job = workflow.split("\n  publish:", maxsplit=1)[1]
     assert "packages: write" not in container_job
     assert "id-token: write" not in container_job
-    assert "push: false" in container_job
+    assert "docker/build-push-action" not in container_job
+    assert "docker compose -f infra/container/compose.yaml config --quiet" in container_job
     assert "packages: write" in publish_job
     assert "push: true" in publish_job
-    assert "Detect image input changes" in container_job
-    assert '":(exclude)infra/container/image.lock"' in container_job
-    assert "Confirm image build is not required" in container_job
+    assert "github.event_name == 'workflow_dispatch'" in publish_job
+    assert "push:" not in workflow.split("\npermissions:", maxsplit=1)[0]
 
 
 def test_workflow_actions_are_commit_pinned() -> None:
-    workflow = (
-        ROOT / ".github" / "workflows" / "remote-training-container.yml"
-    ).read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "remote-training-container.yml").read_text(
+        encoding="utf-8"
+    )
     action_lines = [line.strip() for line in workflow.splitlines() if "uses:" in line]
     assert action_lines
     for line in action_lines:
@@ -177,7 +168,6 @@ def test_workflow_actions_are_commit_pinned() -> None:
         (validate_revision, "a" * 40, "main"),
         (validate_repo_id, "owner/model-name", "../model"),
         (validate_run_id, "EXP-TASK-A001", "bad run/id"),
-        (validate_digest, f"sha256:{'a' * 64}", "sha256:abcd"),
     ],
 )
 def test_identifier_validation(function, valid: str, invalid: str) -> None:
@@ -186,22 +176,21 @@ def test_identifier_validation(function, valid: str, invalid: str) -> None:
         function(invalid)
 
 
-def test_runtime_config_validates_image_digest(tmp_path: Path) -> None:
+def test_runtime_config_has_no_image_identity_gate(tmp_path: Path) -> None:
     runtime_config = tmp_path / "runtime.json"
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "workspace_root": "/workspace",
         "admin_user": "admin",
         "collaborator_user": "collaborator",
         "group_name": "a3",
-        "image_digest": f"sha256:{'a' * 64}",
     }
     runtime_config.write_text(json.dumps(payload), encoding="utf-8")
-    assert load_runtime_config(runtime_config)["image_digest"] == payload["image_digest"]
+    assert load_runtime_config(runtime_config) == payload
 
-    payload["image_digest"] = "sha256:invalid"
+    del payload["group_name"]
     runtime_config.write_text(json.dumps(payload), encoding="utf-8")
-    with pytest.raises(A3ContainerError, match="image digest"):
+    with pytest.raises(A3ContainerError, match="missing keys"):
         load_runtime_config(runtime_config)
 
 
@@ -229,9 +218,7 @@ def test_artifact_inventory_only_skips_the_root_manifest(tmp_path: Path) -> None
 
     files = file_inventory(artifact)
 
-    assert [record["path"] for record in files] == [
-        "nested/a3-artifact-manifest.json"
-    ]
+    assert [record["path"] for record in files] == ["nested/a3-artifact-manifest.json"]
 
 
 def test_artifact_inventory_rejects_manifest_named_symlinks(tmp_path: Path) -> None:
@@ -249,19 +236,6 @@ def test_artifact_inventory_rejects_manifest_named_symlinks(tmp_path: Path) -> N
         file_inventory(artifact)
 
 
-def test_image_manifest_writer_imports() -> None:
-    path = LIB / "write_image_manifest.py"
-    source = path.read_text(encoding="utf-8")
-    spec = importlib.util.spec_from_file_location("write_image_manifest", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    assert '"tensorboard": package_version("tensorboard")' in source
-    assert module.BASE_IMAGE.endswith(
-        "sha256:ad6d59a3bbf3e82c1c849c9ac09cfc2a3e0bbb8655042fd899be6681b3fe2a85"
-    )
-
-
 def test_env_example_contains_no_real_identity() -> None:
     env_example = (CONTAINER / "env.example").read_text(encoding="utf-8")
     assert "CHANGE_ME" in env_example
@@ -269,29 +243,17 @@ def test_env_example_contains_no_real_identity() -> None:
     assert "password" not in env_example.lower()
 
 
-def test_environment_evidence_is_complete_and_internally_consistent() -> None:
-    verification = ROOT / "evidence" / "environment_verification.json"
+def test_historical_environment_evidence_remains_inspectable() -> None:
+    verification = ROOT / "evidence" / "history" / "locked-image-environment-verification.json"
     evidence = json.loads(verification.read_text(encoding="utf-8"))
 
-    assert evidence["schema_version"] == (
-        "a3-remote-training-environment-verification-v1"
-    )
+    assert evidence["schema_version"] == ("a3-remote-training-environment-verification-v1")
     assert evidence["status"] == "pass"
     assert evidence["acceptance_complete"] is True
     assert evidence["scope"]["training_environment_verified"] is True
     assert evidence["scope"]["real_robot_hardware_verified"] is False
     assert evidence["authority"]["administrator_has_final_decision"] is True
     assert evidence["authority"]["collaborator_approval_required"] is False
-
-    image = evidence["image"]
-    assert image["repository"] == "ghcr.io/askarin/a3-outcome-stack-env"
-    assert validate_digest(image["digest"]) == image["digest"]
-    assert validate_revision(image["source_commit"]) == image["source_commit"]
-    assert image["base_image_digest"] == (
-        "sha256:ad6d59a3bbf3e82c1c849c9ac09cfc2a3e0bbb8655042fd899be6681b3fe2a85"
-    )
-    assert re.fullmatch(r"[0-9a-f]{64}", image["uv_lock_sha256"])
-    assert image["packages"]["tensorboard"] == "2.21.0"
 
     access = evidence["access_and_permissions"]
     assert access["external_ssh"]["administrator"]["status"] == "pass"
@@ -306,17 +268,13 @@ def test_environment_evidence_is_complete_and_internally_consistent() -> None:
     acceptance = evidence["acceptance_run"]
     assert acceptance["status"] == "succeeded"
     assert acceptance["exit_code"] == 0
-    assert acceptance["image_digest"] == image["digest"]
     assert acceptance["single_gpu_tensor_allocation"]["gpu_count"] == 3
     assert acceptance["nccl_two_gpu"]["iterations"] == 100
     assert acceptance["nccl_three_gpu"]["iterations"] == 100
     assert acceptance["dataloader"]["world_size"] == 3
     assert acceptance["dataloader"]["workers_per_rank"] == 2
     assert len(acceptance["dataloader"]["ranks"]) == 3
-    assert all(
-        rank["duration_seconds"] >= 600
-        for rank in acceptance["dataloader"]["ranks"]
-    )
+    assert all(rank["duration_seconds"] >= 600 for rank in acceptance["dataloader"]["ranks"])
     assert acceptance["dataloader"]["shared_memory_or_bus_errors"] == 0
     assert acceptance["logging"]["tensorboard_event_count"] >= 1
     assert acceptance["logging"]["wandb_offline_run_count"] >= 1
