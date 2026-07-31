@@ -7,8 +7,7 @@ FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04@sha256:ad6d59a3bbf3e82c1c849c9ac
 ARG PYTHON_VERSION=3.12.13
 
 LABEL org.opencontainers.image.title="A3 OutcomeStack remote training environment" \
-      org.opencontainers.image.source="https://github.com/ASkarin/a3-outcome-stack" \
-      ai.a3-outcome-stack.base-digest="sha256:ad6d59a3bbf3e82c1c849c9ac09cfc2a3e0bbb8655042fd899be6681b3fe2a85"
+      org.opencontainers.image.source="https://github.com/ASkarin/a3-outcome-stack"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -20,7 +19,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     UV_PROJECT_ENVIRONMENT=/opt/a3/.venv \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH=/opt/a3/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    PATH=/workspace/a3/bin:/workspace/a3/python-env/bin:/opt/a3/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -88,17 +87,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     && /opt/a3/.venv/bin/python -c \
         "import importlib.metadata as m; import tensorboard, torch, torchvision; assert m.version('tensorboard') == '2.21.0'; assert torch.__version__ == '2.11.0+cu128'; assert torchvision.__version__ == '0.26.0+cu128'"
 
-ARG SOURCE_COMMIT=unknown
-ARG UV_LOCK_SHA256=unknown
-
-LABEL org.opencontainers.image.revision="${SOURCE_COMMIT}" \
-      ai.a3-outcome-stack.uv-lock-sha256="${UV_LOCK_SHA256}"
-
-ENV PYTHONNOUSERSITE=1
-
 COPY infra/container/bin/ /usr/local/bin/
 COPY infra/container/lib/ /usr/local/lib/a3-container/
 COPY infra/container/entrypoint.sh /usr/local/sbin/a3-entrypoint
+COPY infra/container/init-shared-python.sh /usr/local/sbin/a3-init-shared-python
 COPY infra/container/profile.sh /etc/profile.d/a3.sh
 COPY infra/container/sshd_config /etc/ssh/sshd_config.a3
 
@@ -107,16 +99,12 @@ RUN chmod 0755 \
         /usr/local/bin/a3-artifact-promote \
         /usr/local/bin/a3-env-doctor \
         /usr/local/bin/a3-gpu-run \
+        /usr/local/bin/a3-python \
         /usr/local/sbin/a3-entrypoint \
+        /usr/local/sbin/a3-init-shared-python \
     && chmod 0644 /etc/profile.d/a3.sh /etc/ssh/sshd_config.a3 \
-    && mkdir -p /opt/a3/manifest /run/sshd /workspace \
-    && /opt/a3/.venv/bin/python /usr/local/lib/a3-container/write_image_manifest.py \
-        --output /opt/a3/manifest/environment.json \
-        --python-version "${PYTHON_VERSION}" \
-        --source-commit "${SOURCE_COMMIT}" \
-        --uv-lock-sha256 "${UV_LOCK_SHA256}" \
-    && chown -R root:root /opt/a3 /usr/local/lib/a3-container \
-    && chmod -R a-w /opt/a3/.venv /opt/a3/python
+    && mkdir -p /run/sshd /workspace \
+    && chown -R root:root /opt/a3 /usr/local/lib/a3-container
 
 EXPOSE 22
 

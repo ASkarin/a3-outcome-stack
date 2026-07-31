@@ -1,4 +1,4 @@
-#!/opt/a3/.venv/bin/python
+#!/workspace/a3/python-env/bin/python
 from __future__ import annotations
 
 import argparse
@@ -14,6 +14,7 @@ from contextlib import ExitStack
 from pathlib import Path
 
 for candidate in (
+    Path("/workspace/a3/lib"),
     Path("/usr/local/lib/a3-container"),
     Path(__file__).resolve().parents[1] / "lib",
 ):
@@ -23,16 +24,13 @@ for candidate in (
 
 from a3_container_common import (  # noqa: E402
     A3_ROOT,
-    IMAGE_MANIFEST,
     A3ContainerError,
     atomic_write_json,
     git_state,
     gpu_inventory,
-    load_json,
     load_runtime_config,
     manifest_hash,
     utc_now,
-    validate_digest,
     validate_run_id,
 )
 
@@ -70,7 +68,6 @@ def main() -> int:
     try:
         run_id = validate_run_id(args.run_id)
         runtime = load_runtime_config()
-        validate_digest(runtime["image_digest"])
         user = pwd.getpwuid(os.getuid()).pw_name
         if user not in {runtime["admin_user"], runtime["collaborator_user"]}:
             raise A3ContainerError(f"user {user} is not an A3 project member")
@@ -135,6 +132,16 @@ def main() -> int:
             (run_dir / "tensorboard").mkdir()
             (run_dir / "metrics.jsonl").touch(exist_ok=False)
             (run_dir / "metrics.csv").write_text("step,metric,value\n", encoding="utf-8")
+            package_result = subprocess.run(
+                [sys.executable, "-m", "pip", "freeze", "--all"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            package_text = package_result.stdout.rstrip("\n") + "\n"
+            package_file = run_dir / "python-packages.txt"
+            package_file.write_text(package_text, encoding="utf-8", newline="\n")
+            package_file.chmod(0o640)
 
             config_record = None
             if args.config is not None:
@@ -148,18 +155,22 @@ def main() -> int:
                     "sha256": manifest_hash(copied_config),
                 }
 
-            image_manifest = load_json(IMAGE_MANIFEST)
             environment_payload = {
-                "schema_version": 1,
+                "schema_version": 2,
                 "run_id": run_id,
                 "user": user,
                 "started_at_utc": utc_now(),
                 "command": args.command,
                 "working_directory": str(Path.cwd()),
                 "git": state,
-                "image": {
-                    "digest": runtime["image_digest"],
-                    "manifest": image_manifest,
+                "python": {
+                    "executable": os.path.abspath(sys.executable),
+                    "version": sys.version.split()[0],
+                    "packages_file": package_file.name,
+                    "packages_sha256": manifest_hash(package_file),
+                    "package_count": len(
+                        [line for line in package_text.splitlines() if line.strip()]
+                    ),
                 },
                 "gpus": selected_gpus,
                 "config": config_record,
@@ -211,6 +222,7 @@ def main() -> int:
                 "environment_file": "environment.json",
                 "metrics_jsonl": "metrics.jsonl",
                 "metrics_csv": "metrics.csv",
+                "python_packages": "python-packages.txt",
                 "tensorboard_dir": "tensorboard",
                 "wandb_dir": "wandb",
             }

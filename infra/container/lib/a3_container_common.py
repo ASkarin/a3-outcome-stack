@@ -13,7 +13,8 @@ from typing import Any
 WORKSPACE_ROOT = Path("/workspace")
 A3_ROOT = WORKSPACE_ROOT / "a3"
 RUNTIME_CONFIG = Path("/etc/a3/runtime.json")
-IMAGE_MANIFEST = Path("/opt/a3/manifest/environment.json")
+SHARED_PYTHON_ENV = A3_ROOT / "python-env"
+PYTHON_HISTORY_ROOT = A3_ROOT / "python-env-history"
 ARTIFACT_MANIFEST_NAME = "a3-artifact-manifest.json"
 MIRROR_ENDPOINT = "https://hf-mirror.com"
 MIN_FREE_BYTES = 200 * 1024**3
@@ -23,7 +24,6 @@ MIN_SHM_BYTES = 16 * 1024**3
 _REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 _REPO_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 class A3ContainerError(RuntimeError):
@@ -90,15 +90,21 @@ def load_runtime_config(path: Path = RUNTIME_CONFIG) -> dict[str, Any]:
         "admin_user",
         "collaborator_user",
         "group_name",
-        "image_digest",
     }
     missing = sorted(required - payload.keys())
     if missing:
         raise A3ContainerError(f"runtime config is missing keys: {', '.join(missing)}")
-    image_digest = payload["image_digest"]
-    if not isinstance(image_digest, str):
-        raise A3ContainerError("runtime config image_digest must be a string")
-    validate_digest(image_digest)
+    if payload["schema_version"] != 2:
+        raise A3ContainerError("runtime config schema_version must be 2")
+    for key in ("workspace_root", "admin_user", "collaborator_user", "group_name"):
+        if not isinstance(payload[key], str) or not payload[key]:
+            raise A3ContainerError(f"runtime config {key} must be a non-empty string")
+    expected_workspace = WORKSPACE_ROOT.as_posix()
+    if payload["workspace_root"] != expected_workspace:
+        raise A3ContainerError(
+            f"runtime config workspace_root must be {expected_workspace}, "
+            f"found {payload['workspace_root']}"
+        )
     return payload
 
 
@@ -122,14 +128,6 @@ def validate_repo_id(value: str) -> str:
 def validate_run_id(value: str) -> str:
     if not _RUN_ID_RE.fullmatch(value):
         raise A3ContainerError("run ID contains unsupported characters or is too long")
-    return value
-
-
-def validate_digest(value: str) -> str:
-    if not _DIGEST_RE.fullmatch(value):
-        raise A3ContainerError("image digest must be sha256 followed by 64 lowercase hex digits")
-    if value == f"sha256:{'0' * 64}":
-        raise A3ContainerError("image digest is still the non-deployable zero placeholder")
     return value
 
 

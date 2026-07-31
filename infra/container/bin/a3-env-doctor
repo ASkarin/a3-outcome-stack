@@ -1,16 +1,18 @@
-#!/opt/a3/.venv/bin/python
+#!/workspace/a3/python-env/bin/python
 from __future__ import annotations
 
 import argparse
 import json
 import os
 import pwd
+import subprocess
 import sys
 import urllib.request
 from pathlib import Path
 from typing import Any
 
 for candidate in (
+    Path("/workspace/a3/lib"),
     Path("/usr/local/lib/a3-container"),
     Path(__file__).resolve().parents[1] / "lib",
 ):
@@ -20,19 +22,18 @@ for candidate in (
 
 from a3_container_common import (  # noqa: E402
     A3_ROOT,
-    IMAGE_MANIFEST,
     MIN_FREE_BYTES,
     MIN_SHM_BYTES,
     MIRROR_ENDPOINT,
+    SHARED_PYTHON_ENV,
     WARN_FREE_BYTES,
     A3ContainerError,
     free_bytes,
+    git_state,
     gpu_inventory,
-    load_json,
     load_runtime_config,
-    sha256_file,
+    sha256_bytes,
     total_bytes,
-    validate_digest,
 )
 
 ENDPOINTS = (
@@ -81,35 +82,53 @@ def main() -> int:
         runtime = {}
         add_check(checks, "runtime_config", "fail", str(exc))
 
+    current_user = pwd.getpwuid(os.getuid()).pw_name
     try:
-        runtime_digest = runtime.get("image_digest", "")
-        image_digest = validate_digest(
-            runtime_digest if isinstance(runtime_digest, str) else ""
+        executable = Path(os.path.abspath(sys.executable))
+        shared_root = Path(os.path.abspath(SHARED_PYTHON_ENV))
+        if not executable.is_file() or not shared_root.is_dir():
+            raise A3ContainerError("shared Python environment is unavailable")
+        if not executable.is_relative_to(shared_root):
+            raise A3ContainerError(
+                f"doctor is not running from the shared environment: {executable}"
+            )
+        pip_result = subprocess.run(
+            [sys.executable, "-m", "pip", "--version"],
+            check=True,
+            capture_output=True,
+            text=True,
         )
-        add_check(checks, "image_digest", "pass", image_digest)
-    except A3ContainerError as exc:
-        add_check(checks, "image_digest", "fail", str(exc))
-
-    try:
-        manifest = load_json(IMAGE_MANIFEST)
-        add_check(checks, "image_manifest", "pass", manifest)
-    except A3ContainerError as exc:
-        manifest = {}
-        add_check(checks, "image_manifest", "fail", str(exc))
-
-    repo_lock = args.repo / "uv.lock"
-    if repo_lock.is_file() and manifest.get("uv_lock_sha256"):
-        actual_lock_hash = sha256_file(repo_lock)
-        expected_lock_hash = manifest["uv_lock_sha256"]
-        status = "pass" if actual_lock_hash == expected_lock_hash else "fail"
+        freeze_result = subprocess.run(
+            [sys.executable, "-m", "pip", "freeze", "--all"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        freeze_text = freeze_result.stdout.rstrip("\n") + "\n"
+        expected_writable = current_user == runtime.get("admin_user")
+        writable = os.access(shared_root, os.W_OK)
         add_check(
             checks,
-            "uv_lock",
-            status,
-            {"actual": actual_lock_hash, "expected": expected_lock_hash},
+            "shared_python",
+            "pass" if writable == expected_writable else "fail",
+            {
+                "executable": str(executable),
+                "python_version": sys.version.split()[0],
+                "pip": pip_result.stdout.strip(),
+                "packages_sha256": sha256_bytes(freeze_text.encode("utf-8")),
+                "package_count": len([line for line in freeze_text.splitlines() if line.strip()]),
+                "writable": writable,
+                "expected_writable": expected_writable,
+            },
         )
-    else:
-        add_check(checks, "uv_lock", "fail", f"missing lock or manifest hash at {repo_lock}")
+    except (A3ContainerError, OSError, subprocess.SubprocessError) as exc:
+        add_check(checks, "shared_python", "fail", str(exc))
+
+    try:
+        state = git_state(args.repo.resolve(strict=True))
+        add_check(checks, "repository", "pass", state)
+    except (A3ContainerError, OSError) as exc:
+        add_check(checks, "repository", "fail", str(exc))
 
     try:
         shm_bytes = total_bytes(Path("/dev/shm"))
@@ -150,7 +169,6 @@ def main() -> int:
     except A3ContainerError as exc:
         add_check(checks, "gpus", "fail", str(exc))
 
-    current_user = pwd.getpwuid(os.getuid()).pw_name
     allowed_users = {runtime.get("admin_user"), runtime.get("collaborator_user")}
     add_check(
         checks,
@@ -166,6 +184,10 @@ def main() -> int:
         (A3_ROOT / "releases" / "models", False),
         (A3_ROOT / "cache", True),
         (A3_ROOT / "locks", True),
+        (
+            SHARED_PYTHON_ENV,
+            current_user == runtime.get("admin_user"),
+        ),
         (
             Path("/workspace/projects/a3-outcome-stack"),
             current_user == runtime.get("admin_user"),

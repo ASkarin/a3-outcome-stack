@@ -1,10 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly WORKSPACE_ROOT="/workspace"
 readonly CONFIG_ROOT="/run/a3-config"
 readonly SSH_HOST_KEY_ROOT="/etc/ssh/a3_host_keys"
 readonly RUNTIME_CONFIG="/etc/a3/runtime.json"
+
+if [[ -x "${SCRIPT_DIR}/init-shared-python.sh" && -d "${SCRIPT_DIR}/bin" ]]; then
+    readonly PYTHON_INITIALIZER="${SCRIPT_DIR}/init-shared-python.sh"
+    readonly COMMAND_SOURCE="${SCRIPT_DIR}/bin"
+    readonly LIB_SOURCE="${SCRIPT_DIR}/lib"
+    readonly PROFILE_SOURCE="${SCRIPT_DIR}/profile.sh"
+else
+    readonly PYTHON_INITIALIZER="/usr/local/sbin/a3-init-shared-python"
+    readonly COMMAND_SOURCE="/usr/local/bin"
+    readonly LIB_SOURCE="/usr/local/lib/a3-container"
+    readonly PROFILE_SOURCE="/etc/profile.d/a3.sh"
+fi
 
 fail() {
     echo "a3-entrypoint: $*" >&2
@@ -131,7 +144,7 @@ install_shell_startup() {
     local user="$1"
     local home
     local startup
-    local source_line='source /etc/profile.d/a3.sh'
+    local source_line='source /workspace/a3/profile.sh'
 
     home="$(getent passwd "${user}" | cut -d: -f6)"
     for startup in "${home}/.profile" "${home}/.bashrc"; do
@@ -141,6 +154,7 @@ install_shell_startup() {
         if [[ ! -e "${startup}" ]]; then
             install -m 0644 -o "${user}" -g "${user}" /dev/null "${startup}"
         fi
+        sed -i '\|^source /etc/profile.d/a3.sh$|d' "${startup}"
         if ! grep -Fqx "${source_line}" "${startup}"; then
             printf '\n%s\n' "${source_line}" >>"${startup}"
         fi
@@ -167,8 +181,7 @@ for variable in \
     A3_COLLAB_USER \
     A3_COLLAB_UID \
     A3_GROUP_GID \
-    A3_GROUP_NAME \
-    A3_IMAGE_DIGEST
+    A3_GROUP_NAME
 do
     require_var "${variable}"
 done
@@ -204,8 +217,11 @@ setfacl -m \
     "u:${A3_ADMIN_USER}:rwx,u:${A3_COLLAB_USER}:r-x,m::rwx" \
     "${WORKSPACE_ROOT}"
 
-printf '%s ALL=(ALL:ALL) NOPASSWD: ALL\n' "${A3_ADMIN_USER}" \
-    >"/etc/sudoers.d/a3-admin"
+{
+    printf '%s\n' \
+        'Defaults secure_path="/workspace/a3/bin:/workspace/a3/python-env/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"'
+    printf '%s ALL=(ALL:ALL) NOPASSWD: ALL\n' "${A3_ADMIN_USER}"
+} >"/etc/sudoers.d/a3-admin"
 chmod 0440 /etc/sudoers.d/a3-admin
 visudo --check --file /etc/sudoers.d/a3-admin >/dev/null
 
@@ -215,8 +231,6 @@ install_authorized_keys \
 install_authorized_keys \
     "${A3_COLLAB_USER}" \
     "${CONFIG_ROOT}/collaborator_authorized_keys"
-install_shell_startup "${A3_ADMIN_USER}"
-install_shell_startup "${A3_COLLAB_USER}"
 
 install -d -m 2750 -o "${A3_ADMIN_USER}" -g "${A3_GROUP_NAME}" \
     "${WORKSPACE_ROOT}/projects" \
@@ -253,8 +267,18 @@ set_write_acl "${WORKSPACE_ROOT}/a3/locks"
 install -d -m 0700 -o "${A3_ADMIN_USER}" -g "${A3_ADMIN_USER}" \
     "${WORKSPACE_ROOT}/a3/admin"
 
+env \
+    A3_ADMIN_USER="${A3_ADMIN_USER}" \
+    A3_GROUP_NAME="${A3_GROUP_NAME}" \
+    A3_CONTAINER_BIN_SOURCE="${COMMAND_SOURCE}" \
+    A3_CONTAINER_LIB_SOURCE="${LIB_SOURCE}" \
+    A3_PROFILE_SOURCE="${PROFILE_SOURCE}" \
+    "${PYTHON_INITIALIZER}"
+install_shell_startup "${A3_ADMIN_USER}"
+install_shell_startup "${A3_COLLAB_USER}"
+
 install -d -m 0755 /etc/a3
-/opt/a3/.venv/bin/python - "${RUNTIME_CONFIG}" <<'PY'
+/workspace/a3/python-env/bin/python - "${RUNTIME_CONFIG}" <<'PY'
 import json
 import os
 import pathlib
@@ -262,12 +286,11 @@ import sys
 
 output = pathlib.Path(sys.argv[1])
 payload = {
-    "schema_version": 1,
+    "schema_version": 2,
     "workspace_root": "/workspace",
     "admin_user": os.environ["A3_ADMIN_USER"],
     "collaborator_user": os.environ["A3_COLLAB_USER"],
     "group_name": os.environ["A3_GROUP_NAME"],
-    "image_digest": os.environ["A3_IMAGE_DIGEST"],
 }
 output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 output.chmod(0o644)

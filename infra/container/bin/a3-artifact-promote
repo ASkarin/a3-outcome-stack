@@ -1,4 +1,4 @@
-#!/opt/a3/.venv/bin/python
+#!/workspace/a3/python-env/bin/python
 from __future__ import annotations
 
 import argparse
@@ -10,6 +10,7 @@ import uuid
 from pathlib import Path
 
 for candidate in (
+    Path("/workspace/a3/lib"),
     Path("/usr/local/lib/a3-container"),
     Path(__file__).resolve().parents[1] / "lib",
 ):
@@ -40,7 +41,9 @@ def set_release_ownership(root: Path, uid: int, gid: int) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Promote a verified artifact into a read-only release")
+    parser = argparse.ArgumentParser(
+        description="Promote a verified artifact into a read-only release"
+    )
     parser.add_argument("--manifest", type=Path, required=True)
     args = parser.parse_args()
 
@@ -78,7 +81,9 @@ def main() -> int:
         release_parent = A3_ROOT / "releases" / release_kind
         destination = release_parent / f"{repo_id.replace('/', '--')}@{revision}"
         if destination.exists():
-            raise A3ContainerError(f"release already exists and cannot be overwritten: {destination}")
+            raise A3ContainerError(
+                f"release already exists and cannot be overwritten: {destination}"
+            )
 
         temporary = release_parent / f".{destination.name}.tmp-{uuid.uuid4().hex}"
         shutil.copytree(source_root, temporary, symlinks=False)
