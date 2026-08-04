@@ -9,6 +9,12 @@ description = "A reproducible EduLite A3 learning stack with action-outcome eval
 requires-python = ">=3.12,<3.13"
 
 [project.optional-dependencies]
+local-controller = [
+    "el_a3_sdk @ git+https://github.com/RobStride/EDULITE_A3.git@ea7231f784ebb37e4c4120f7be8e3670514dc9ee#subdirectory=el_a3_sdk ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "lerobot[smolvla] @ git+https://github.com/huggingface/lerobot.git@30da8e687a6dfc617fcd94afc367ac7071c376ce ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "torch==2.11.0+cu128 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "torchvision==0.26.0+cu128 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
 remote-training = [
     "lerobot[smolvla,training] @ git+https://github.com/huggingface/lerobot.git@30da8e687a6dfc617fcd94afc367ac7071c376ce ; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "tensorboard==2.21.0 ; sys_platform == 'linux' and platform_machine == 'x86_64'",

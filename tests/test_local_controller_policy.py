@@ -1,0 +1,97 @@
+from __future__ import annotations
+
+import re
+import tomllib
+from pathlib import Path
+
+ROOT = Path(__file__).parents[1]
+LOCAL = ROOT / "infra" / "local-controller"
+
+
+def test_local_controller_dependency_set_is_pinned_and_device_scoped():
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    local_extra = "\n".join(pyproject["project"]["optional-dependencies"]["local-controller"])
+    assert "el_a3_sdk @ git+https://github.com/RobStride/EDULITE_A3.git@" in local_extra
+    assert "#subdirectory=el_a3_sdk" in local_extra
+    assert "lerobot[smolvla]" in local_extra
+    assert "core_scripts" not in local_extra
+    assert "torch==2.11.0+cu128" in local_extra
+    assert "torchvision==0.26.0+cu128" in local_extra
+    assert "pyrealsense2" not in local_extra
+    assert "pyserial" not in local_extra
+
+
+def test_base_local_service_is_mock_only_and_has_no_network_listener():
+    unit = (LOCAL / "a3-local-control.service").read_text(encoding="utf-8")
+    assert "robot control serve-mock" in unit
+    assert "RestrictAddressFamilies=AF_UNIX" in unit
+    assert "PrivateDevices=yes" in unit
+    assert "DynamicUser=yes" in unit
+    assert "SupplementaryGroups=a3-operator a3-hardware" in unit
+    assert "Restart=no" in unit
+    assert "AF_INET" not in unit
+    assert "AF_CAN" not in unit
+
+
+def test_bootstrap_creates_roles_but_no_placeholder_human_account():
+    bootstrap = (LOCAL / "bootstrap-host.sh").read_text(encoding="utf-8")
+    manager = (LOCAL / "manage-collaborator.sh").read_text(encoding="utf-8")
+    assert "groupadd --force" in bootstrap
+    assert "a3-collab" in bootstrap
+    assert "a3-operator" in bootstrap
+    assert "a3-hardware" in bootstrap
+    assert "useradd" not in bootstrap
+    assert "adduser" not in bootstrap
+    assert "A3_TAILNET_GRANT_CONFIRMED" in manager
+    assert "A3_TAILNET_GRANT_REVOKED" in manager
+    assert 'usermod --groups "" --lock' in manager
+    assert "authorized_keys" in manager
+
+
+def test_deployment_uses_clean_commit_scoped_immutable_environments():
+    deploy = (LOCAL / "deploy-release.sh").read_text(encoding="utf-8")
+    assert 'git -C "${source_root}" diff --quiet' in deploy
+    assert 'git -C "${source_root}" diff --cached --quiet' in deploy
+    assert "status --porcelain --untracked-files=all" in deploy
+    assert 'archive --format=tar "${commit}"' in deploy
+    assert "rsync" not in deploy
+    assert "uv sync" in deploy
+    assert "--frozen --extra local-controller --no-dev" in deploy
+    assert "release already exists; releases are immutable" in deploy
+    assert "chown -R root:" in deploy
+    assert "mv -Tf" in deploy
+
+
+def test_host_doctor_requires_exact_planned_runtime_versions():
+    doctor = (LOCAL / "a3-local-doctor.sh").read_text(encoding="utf-8")
+    assert '"${driver_version}" == 595.*' in doctor
+    assert '"${uv_version}" == "0.11.32"' in doctor
+    assert '"${python_version}" == "3.12.13"' in doctor
+
+
+def test_host_security_is_public_key_only_and_has_timed_rollback():
+    sshd = (LOCAL / "sshd-hardening.conf").read_text(encoding="utf-8")
+    bootstrap = (LOCAL / "bootstrap-host.sh").read_text(encoding="utf-8")
+    assert "PermitRootLogin no" in sshd
+    assert "PasswordAuthentication no" in sshd
+    assert "KbdInteractiveAuthentication no" in sshd
+    assert "AuthenticationMethods publickey" in sshd
+    assert "current_ssh_uses_tailscale" in bootstrap
+    assert "--on-active=10m" in bootstrap
+    assert "confirm-security" in bootstrap
+    assert "ufw allow in on tailscale0" in bootstrap
+    assert "ufw --force enable" in bootstrap
+    assert "ufw --force reset" in bootstrap
+    assert "assert_administrator_key" in bootstrap
+    assert "assert_sshd_policy" in bootstrap
+    assert "assert_ufw_policy" in bootstrap
+    assert "AllowTcpForwarding no" in sshd
+    assert "AllowStreamLocalForwarding no" in sshd
+
+
+def test_local_controller_templates_contain_no_literal_network_address():
+    text = "\n".join(path.read_text(encoding="utf-8") for path in LOCAL.iterdir() if path.is_file())
+    assert not re.search(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", text)
+    assert "PRIVATE KEY" not in text
+    assert "ssh-rsa " not in text
+    assert "ssh-ed25519 " not in text
