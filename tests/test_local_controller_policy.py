@@ -27,7 +27,7 @@ def test_base_local_service_is_mock_only_and_has_no_network_listener():
     assert "RestrictAddressFamilies=AF_UNIX" in unit
     assert "PrivateDevices=yes" in unit
     assert "DynamicUser=yes" in unit
-    assert "SupplementaryGroups=a3-operator a3-hardware" in unit
+    assert "SupplementaryGroups=a3-collab a3-operator a3-hardware" in unit
     assert "Restart=no" in unit
     assert "AF_INET" not in unit
     assert "AF_CAN" not in unit

@@ -6,7 +6,7 @@ ConditionPathExists=/etc/a3-outcome-stack/local-control.env
 [Service]
 Type=simple
 DynamicUser=yes
-SupplementaryGroups=a3-operator a3-hardware
+SupplementaryGroups=a3-collab a3-operator a3-hardware
 EnvironmentFile=/etc/a3-outcome-stack/local-control.env
 RuntimeDirectory=a3-outcome-stack
 RuntimeDirectoryMode=0750
