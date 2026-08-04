@@ -46,6 +46,10 @@ def test_bootstrap_creates_roles_but_no_placeholder_human_account():
     assert "A3_TAILNET_GRANT_REVOKED" in manager
     assert 'usermod --groups "" --lock' in manager
     assert "authorized_keys" in manager
+    assert "account already exists" in manager
+    assert "public-key file must contain exactly one key" in manager
+    assert "account was not provisioned by this manager" in manager
+    assert '"${account_uid}" -ge 1000' in manager
 
 
 def test_deployment_uses_clean_commit_scoped_immutable_environments():
