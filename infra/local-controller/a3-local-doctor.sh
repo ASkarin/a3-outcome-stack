@@ -62,13 +62,13 @@ fi
 [[ "${sshd_policy_ok}" == "true" ]] || status=incomplete
 
 ufw_policy_ok=false
-if ufw status 2>/dev/null | grep -q '^Status: active'; then
+ufw_status=$(ufw status verbose 2>/dev/null || true)
+if grep -q '^Status: active' <<<"${ufw_status}" && \
+    grep -q '^Default: deny (incoming), allow (outgoing)' <<<"${ufw_status}"; then
     ufw_added=$(ufw show added 2>/dev/null || true)
     unexpected_ufw=$(grep -E '^ufw allow' <<<"${ufw_added}" | \
-        grep -Ev '^ufw allow in on tailscale0 proto tcp to any port [0-9]+( comment .*)?$' || true)
-    if grep -Fqx 'ufw default deny incoming' <<<"${ufw_added}" && \
-        grep -Fqx 'ufw default allow outgoing' <<<"${ufw_added}" && \
-        grep -Eq '^ufw allow in on tailscale0 proto tcp to any port [0-9]+' <<<"${ufw_added}" && \
+        grep -Ev '^ufw allow in on tailscale0 to any port [0-9]+ proto tcp( comment .*)?$' || true)
+    if grep -Eq '^ufw allow in on tailscale0 to any port [0-9]+ proto tcp' <<<"${ufw_added}" && \
         [[ -z "${unexpected_ufw}" ]]; then
         ufw_policy_ok=true
     fi

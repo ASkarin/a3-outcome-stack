@@ -81,6 +81,9 @@ def test_host_doctor_requires_exact_planned_runtime_versions():
     assert '"${driver_version}" == 595.*' in doctor
     assert '"${uv_version}" == "0.11.32"' in doctor
     assert '"${python_version}" == "3.12.13"' in doctor
+    assert "ufw status verbose" in doctor
+    assert "Default: deny (incoming), allow (outgoing)" in doctor
+    assert "on tailscale0 to any port [0-9]+ proto tcp" in doctor
 
 
 def test_host_security_is_public_key_only_and_has_timed_rollback():
