@@ -5,6 +5,7 @@ export LC_ALL=C
 deployment_root=/opt/a3-outcome-stack
 release_root=${deployment_root}/releases
 collab_group=a3-collab
+release_marker=.a3-release-complete
 
 fail() {
     echo "error: $*" >&2
@@ -44,6 +45,10 @@ activate_release() {
     [[ "${commit}" =~ ^[0-9a-f]{40}$ ]] || fail "release must be a full Git commit"
     local release=${release_root}/${commit}
     [[ -d "${release}" && ! -L "${release}" ]] || fail "release does not exist"
+    [[ -f "${release}/${release_marker}" && ! -L "${release}/${release_marker}" ]] || \
+        fail "release is incomplete"
+    [[ "$(<"${release}/${release_marker}")" == "${commit}" ]] || \
+        fail "release completion marker does not match commit"
     local temporary_link=${deployment_root}/.current.${commit}
     [[ ! -e "${temporary_link}" && ! -L "${temporary_link}" ]] || \
         fail "temporary activation link already exists"
@@ -73,9 +78,13 @@ case "${action}" in
         UV_PYTHON_INSTALL_DIR=/opt/a3/python \
             uv sync --project "${temporary}" --frozen --extra local-controller --no-dev \
             --no-editable
-        chown -R root:"${collab_group}" "${temporary}"
-        chmod -R u=rwX,g=rX,o= "${temporary}"
         mv -- "${temporary}" "${destination}"
+        UV_PYTHON_INSTALL_DIR=/opt/a3/python \
+            uv sync --project "${destination}" --frozen --extra local-controller --no-dev \
+            --no-editable
+        printf '%s\n' "${commit}" >"${destination}/${release_marker}"
+        chown -R root:"${collab_group}" "${destination}"
+        chmod -R u=rwX,g=rX,o= "${destination}"
         activate_release "${commit}"
         ;;
     activate)
