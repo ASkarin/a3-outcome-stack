@@ -82,10 +82,10 @@ assert_ufw_policy() {
     grep -q '^Default: deny (incoming), allow (outgoing)' <<<"${status_output}" || \
         fail "UFW default policy mismatch"
     added=$(ufw show added)
-    grep -Eq '^ufw allow in on tailscale0 proto tcp to any port [0-9]+' <<<"${added}" || \
+    grep -Eq '^ufw allow in on tailscale0 to any port [0-9]+ proto tcp' <<<"${added}" || \
         fail "UFW has no Tailscale-only SSH rule"
     unexpected=$(grep -E '^ufw allow' <<<"${added}" | \
-        grep -Ev '^ufw allow in on tailscale0 proto tcp to any port [0-9]+( comment .*)?$' || true)
+        grep -Ev '^ufw allow in on tailscale0 to any port [0-9]+ proto tcp( comment .*)?$' || true)
     [[ -z "${unexpected}" ]] || fail "UFW contains an unexpected allow rule"
 }
 
