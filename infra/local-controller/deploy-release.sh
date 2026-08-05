@@ -14,6 +14,10 @@ fail() {
 [[ "${EUID}" -eq 0 ]] || fail "run as root"
 action=${1:-}
 
+git_source() {
+    git -c "safe.directory=${source_root}" -C "${source_root}" "$@"
+}
+
 activate_release() {
     local commit=${1:-}
     [[ "${commit}" =~ ^[0-9a-f]{40}$ ]] || fail "release must be a full Git commit"
@@ -30,11 +34,11 @@ case "${action}" in
     install)
         source_root=${2:-}
         [[ -d "${source_root}/.git" ]] || fail "source must be a Git checkout"
-        git -C "${source_root}" diff --quiet || fail "source worktree is dirty"
-        git -C "${source_root}" diff --cached --quiet || fail "source index is dirty"
-        [[ -z "$(git -C "${source_root}" status --porcelain --untracked-files=all)" ]] || \
+        git_source diff --quiet || fail "source worktree is dirty"
+        git_source diff --cached --quiet || fail "source index is dirty"
+        [[ -z "$(git_source status --porcelain --untracked-files=all)" ]] || \
             fail "source checkout contains untracked files"
-        commit=$(git -C "${source_root}" rev-parse HEAD)
+        commit=$(git_source rev-parse HEAD)
         [[ "${commit}" =~ ^[0-9a-f]{40}$ ]] || fail "source commit is invalid"
         destination=${release_root}/${commit}
         [[ ! -e "${destination}" && ! -L "${destination}" ]] || \
@@ -42,7 +46,7 @@ case "${action}" in
         temporary=${release_root}/.${commit}.installing
         [[ ! -e "${temporary}" ]] || fail "stale release installation exists"
         install -d -m 0750 -o root -g "${collab_group}" "${temporary}"
-        git -C "${source_root}" archive --format=tar "${commit}" | \
+        git_source archive --format=tar "${commit}" | \
             tar -xf - -C "${temporary}"
         UV_PYTHON_INSTALL_DIR=/opt/a3/python \
             uv sync --project "${temporary}" --frozen --extra local-controller --no-dev

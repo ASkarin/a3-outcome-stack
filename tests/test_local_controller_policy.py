@@ -54,8 +54,10 @@ def test_bootstrap_creates_roles_but_no_placeholder_human_account():
 
 def test_deployment_uses_clean_commit_scoped_immutable_environments():
     deploy = (LOCAL / "deploy-release.sh").read_text(encoding="utf-8")
-    assert 'git -C "${source_root}" diff --quiet' in deploy
-    assert 'git -C "${source_root}" diff --cached --quiet' in deploy
+    assert 'git -c "safe.directory=${source_root}" -C "${source_root}" "$@"' in deploy
+    assert "git config --global" not in deploy
+    assert "git_source diff --quiet" in deploy
+    assert "git_source diff --cached --quiet" in deploy
     assert "status --porcelain --untracked-files=all" in deploy
     assert 'archive --format=tar "${commit}"' in deploy
     assert "rsync" not in deploy
