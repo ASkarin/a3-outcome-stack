@@ -37,12 +37,14 @@ current_ssh_uses_tailscale() {
     [[ -n "${connection}" ]] || \
         fail "preserve SSH_CONNECTION through sudo for the security phase"
     local peer=${connection%% *}
+    local route
     [[ -n "${peer}" ]] || return 1
     if [[ "${peer}" == *:* ]]; then
-        ip -6 route get "${peer}" 2>/dev/null | grep -q 'dev tailscale0'
+        route=$(ip -6 route get "${peer}" 2>/dev/null) || return 1
     else
-        ip route get "${peer}" 2>/dev/null | grep -q 'dev tailscale0'
+        route=$(ip route get "${peer}" 2>/dev/null) || return 1
     fi
+    grep -q 'dev tailscale0' <<<"${route}"
 }
 
 assert_administrator_key() {
@@ -74,8 +76,9 @@ assert_sshd_policy() {
 }
 
 assert_ufw_policy() {
-    local added unexpected
-    ufw status | grep -q '^Status: active' || fail "UFW is not active"
+    local added status_output unexpected
+    status_output=$(ufw status)
+    grep -q '^Status: active' <<<"${status_output}" || fail "UFW is not active"
     added=$(ufw show added)
     grep -Fqx 'ufw default deny incoming' <<<"${added}" || \
         fail "UFW incoming default is not deny"
@@ -152,7 +155,7 @@ install_security() {
     install -d -m 0755 -o root -g root /etc/ssh/sshd_config.d "${runtime_root}"
     [[ ! -e "${runtime_root}/security-pending" ]] || \
         fail "a security change is already pending confirmation"
-    local timestamp backup ssh_port ufw_was_active had_dropin rollback_instance
+    local timestamp backup ssh_port ufw_status ufw_was_active had_dropin rollback_instance
     timestamp=$(date -u +%Y%m%dT%H%M%SZ)
     backup="${state_root}/admin/security-backups/${timestamp}"
     rollback_instance="${rollback_unit}-${timestamp}"
@@ -160,7 +163,8 @@ install_security() {
     cp -a -- /etc/default/ufw "${backup}/default-ufw"
     cp -a -- /etc/ufw "${backup}/ufw"
     ufw_was_active=no
-    ufw status | grep -q '^Status: active' && ufw_was_active=yes || true
+    ufw_status=$(ufw status)
+    grep -q '^Status: active' <<<"${ufw_status}" && ufw_was_active=yes || true
     had_dropin=no
     if [[ -f "${dropin}" ]]; then
         had_dropin=yes
@@ -181,7 +185,8 @@ install_security() {
     install -m 0644 "${script_dir}/sshd-hardening.conf" "${dropin}"
     /usr/sbin/sshd -t
     assert_sshd_policy
-    ssh_port=$(/usr/sbin/sshd -T | awk '$1 == "port" {print $2; exit}')
+    ssh_port=$(/usr/sbin/sshd -T | \
+        awk '$1 == "port" && !seen {print $2; seen=1}')
     [[ "${ssh_port}" =~ ^[0-9]+$ ]] || fail "could not determine the SSH service port"
     ufw --force reset
     ufw default deny incoming

@@ -85,6 +85,9 @@ def test_host_security_is_public_key_only_and_has_timed_rollback():
     assert "current_ssh_uses_tailscale" in bootstrap
     assert 'local connection=${SSH_CONNECTION:-}' in bootstrap
     assert "preserve SSH_CONNECTION through sudo" in bootstrap
+    assert "| grep -q" not in bootstrap
+    assert "{print $2; exit}" not in bootstrap
+    assert "{print $2; seen=1}" in bootstrap
     assert "--on-active=10m" in bootstrap
     assert "confirm-security" in bootstrap
     assert "ufw allow in on tailscale0" in bootstrap
