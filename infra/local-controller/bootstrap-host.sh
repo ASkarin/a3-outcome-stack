@@ -77,13 +77,11 @@ assert_sshd_policy() {
 
 assert_ufw_policy() {
     local added status_output unexpected
-    status_output=$(ufw status)
+    status_output=$(ufw status verbose)
     grep -q '^Status: active' <<<"${status_output}" || fail "UFW is not active"
+    grep -q '^Default: deny (incoming), allow (outgoing)' <<<"${status_output}" || \
+        fail "UFW default policy mismatch"
     added=$(ufw show added)
-    grep -Fqx 'ufw default deny incoming' <<<"${added}" || \
-        fail "UFW incoming default is not deny"
-    grep -Fqx 'ufw default allow outgoing' <<<"${added}" || \
-        fail "UFW outgoing default is not allow"
     grep -Eq '^ufw allow in on tailscale0 proto tcp to any port [0-9]+' <<<"${added}" || \
         fail "UFW has no Tailscale-only SSH rule"
     unexpected=$(grep -E '^ufw allow' <<<"${added}" | \

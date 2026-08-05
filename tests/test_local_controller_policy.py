@@ -96,6 +96,8 @@ def test_host_security_is_public_key_only_and_has_timed_rollback():
     assert "assert_administrator_key" in bootstrap
     assert "assert_sshd_policy" in bootstrap
     assert "assert_ufw_policy" in bootstrap
+    assert "ufw status verbose" in bootstrap
+    assert "UFW default policy mismatch" in bootstrap
     assert "AllowTcpForwarding no" in sshd
     assert "AllowStreamLocalForwarding no" in sshd
 
