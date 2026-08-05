@@ -63,6 +63,7 @@ def test_deployment_uses_clean_commit_scoped_immutable_environments():
     assert "rsync" not in deploy
     assert "uv sync" in deploy
     assert "--frozen --extra local-controller --no-dev" in deploy
+    assert "--no-editable" in deploy
     assert "A3_PYPI_MIRROR must be an HTTPS package index" in deploy
     assert "uv export" in deploy
     assert "--require-hashes" in deploy

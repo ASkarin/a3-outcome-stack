@@ -54,7 +54,9 @@ sudo A3_PYPI_MIRROR=https://mirror.example/simple \
 ```
 
 Rollback switches the `current` link to an existing immutable release; it never
-overwrites a prior release.
+overwrites a prior release. The project is installed non-editably so moving the
+completed staging directory into its commit-scoped final path cannot leave a
+Python import path pointing back to the staging name.
 
 The security phase:
 

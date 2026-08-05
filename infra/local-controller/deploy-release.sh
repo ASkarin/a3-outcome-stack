@@ -71,7 +71,8 @@ case "${action}" in
             tar -xf - -C "${temporary}"
         preinstall_registry_from_mirror "${temporary}"
         UV_PYTHON_INSTALL_DIR=/opt/a3/python \
-            uv sync --project "${temporary}" --frozen --extra local-controller --no-dev
+            uv sync --project "${temporary}" --frozen --extra local-controller --no-dev \
+            --no-editable
         chown -R root:"${collab_group}" "${temporary}"
         chmod -R u=rwX,g=rX,o= "${temporary}"
         mv -- "${temporary}" "${destination}"
