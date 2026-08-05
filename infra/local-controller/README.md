@@ -42,6 +42,17 @@ as an immutable release:
 sudo /usr/local/sbin/a3-local-deploy-release install <clean-source-checkout>
 ```
 
+If the locked PyPI CDN is unusably slow, the administrator may pass an HTTPS
+index through `A3_PYPI_MIRROR`. The deployer exports only registry dependencies
+with their lockfile hashes, preinstalls them from that index, and still runs the
+same final frozen sync. Git dependencies and the pinned PyTorch wheels remain on
+their locked sources.
+
+```bash
+sudo A3_PYPI_MIRROR=https://mirror.example/simple \
+  /usr/local/sbin/a3-local-deploy-release install <clean-source-checkout>
+```
+
 Rollback switches the `current` link to an existing immutable release; it never
 overwrites a prior release.
 

@@ -18,6 +18,27 @@ git_source() {
     git -c "safe.directory=${source_root}" -C "${source_root}" "$@"
 }
 
+preinstall_registry_from_mirror() {
+    local project=$1
+    local mirror=${A3_PYPI_MIRROR:-}
+    [[ -n "${mirror}" ]] || return 0
+    [[ "${mirror}" =~ ^https://[^[:space:]]+$ ]] || \
+        fail "A3_PYPI_MIRROR must be an HTTPS package index"
+    local requirements=${project}/.a3-mirror-requirements.txt
+    UV_PYTHON_INSTALL_DIR=/opt/a3/python \
+        uv export --project "${project}" --frozen --extra local-controller --no-dev \
+        --no-emit-project --no-emit-package el-a3-sdk --no-emit-package lerobot \
+        --no-emit-package torch --no-emit-package torchvision \
+        --format requirements-txt --output-file "${requirements}"
+    UV_PYTHON_INSTALL_DIR=/opt/a3/python \
+        uv venv --python 3.12.13 "${project}/.venv"
+    UV_DEFAULT_INDEX="${mirror}" UV_CONCURRENT_DOWNLOADS=8 \
+        UV_HTTP_TIMEOUT=600 UV_HTTP_RETRIES=10 \
+        uv pip sync --python "${project}/.venv/bin/python" \
+        --require-hashes "${requirements}"
+    rm -f -- "${requirements}"
+}
+
 activate_release() {
     local commit=${1:-}
     [[ "${commit}" =~ ^[0-9a-f]{40}$ ]] || fail "release must be a full Git commit"
@@ -48,6 +69,7 @@ case "${action}" in
         install -d -m 0750 -o root -g "${collab_group}" "${temporary}"
         git_source archive --format=tar "${commit}" | \
             tar -xf - -C "${temporary}"
+        preinstall_registry_from_mirror "${temporary}"
         UV_PYTHON_INSTALL_DIR=/opt/a3/python \
             uv sync --project "${temporary}" --frozen --extra local-controller --no-dev
         chown -R root:"${collab_group}" "${temporary}"

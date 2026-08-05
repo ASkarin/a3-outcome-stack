@@ -63,6 +63,13 @@ def test_deployment_uses_clean_commit_scoped_immutable_environments():
     assert "rsync" not in deploy
     assert "uv sync" in deploy
     assert "--frozen --extra local-controller --no-dev" in deploy
+    assert "A3_PYPI_MIRROR must be an HTTPS package index" in deploy
+    assert "uv export" in deploy
+    assert "--require-hashes" in deploy
+    assert "--no-emit-package torch" in deploy
+    assert "--no-emit-package torchvision" in deploy
+    assert "UV_DEFAULT_INDEX" in deploy
+    assert "UV_HTTP_TIMEOUT=600" in deploy
     assert "release already exists; releases are immutable" in deploy
     assert "chown -R root:" in deploy
     assert "mv -Tf" in deploy
