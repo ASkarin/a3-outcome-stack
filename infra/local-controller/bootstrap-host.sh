@@ -33,7 +33,10 @@ administrator_account() {
 }
 
 current_ssh_uses_tailscale() {
-    local peer=${SSH_CONNECTION%% *}
+    local connection=${SSH_CONNECTION:-}
+    [[ -n "${connection}" ]] || \
+        fail "preserve SSH_CONNECTION through sudo for the security phase"
+    local peer=${connection%% *}
     [[ -n "${peer}" ]] || return 1
     if [[ "${peer}" == *:* ]]; then
         ip -6 route get "${peer}" 2>/dev/null | grep -q 'dev tailscale0'

@@ -22,9 +22,10 @@ session.
 ```bash
 sudo bash infra/local-controller/bootstrap-host.sh base
 sudo bash infra/local-controller/bootstrap-host.sh gpu
-sudo A3_CONFIRM_CONSOLE=YES \
+sudo --preserve-env=SSH_CONNECTION A3_CONFIRM_CONSOLE=YES \
   bash infra/local-controller/bootstrap-host.sh security
-sudo bash infra/local-controller/bootstrap-host.sh confirm-security
+sudo --preserve-env=SSH_CONNECTION \
+  bash infra/local-controller/bootstrap-host.sh confirm-security
 sudo bash infra/local-controller/bootstrap-host.sh check
 ```
 

@@ -83,6 +83,8 @@ def test_host_security_is_public_key_only_and_has_timed_rollback():
     assert "KbdInteractiveAuthentication no" in sshd
     assert "AuthenticationMethods publickey" in sshd
     assert "current_ssh_uses_tailscale" in bootstrap
+    assert 'local connection=${SSH_CONNECTION:-}' in bootstrap
+    assert "preserve SSH_CONNECTION through sudo" in bootstrap
     assert "--on-active=10m" in bootstrap
     assert "confirm-security" in bootstrap
     assert "ufw allow in on tailscale0" in bootstrap
@@ -93,6 +95,9 @@ def test_host_security_is_public_key_only_and_has_timed_rollback():
     assert "assert_ufw_policy" in bootstrap
     assert "AllowTcpForwarding no" in sshd
     assert "AllowStreamLocalForwarding no" in sshd
+
+    local_readme = (LOCAL / "README.md").read_text(encoding="utf-8")
+    assert local_readme.count("--preserve-env=SSH_CONNECTION") == 2
 
 
 def test_local_controller_templates_contain_no_literal_network_address():
