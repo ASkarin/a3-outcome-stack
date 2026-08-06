@@ -5,17 +5,29 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import math
+import os
 import shutil
+import stat
+import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from a3_outcome_stack.ops.canonical import canonical_json_bytes, load_json, utc_now
-from a3_outcome_stack.ops.errors import IntegrityError, ValidationError
+from a3_outcome_stack.ops.canonical import (
+    atomic_write_json,
+    canonical_json_bytes,
+    load_json,
+    sha256_file,
+    utc_now,
+)
+from a3_outcome_stack.ops.errors import IntegrityError, StateConflict, ValidationError
 
 from .backend import SafeRobot
 from .clock import ManualClock
+from .control import run_control_client, serve_mock_control
 from .mock import MockBackend
 from .replay import ReplayBackend
+from .session import build_operator_permit
 from .trace import TraceWriter, verify_trace
 from .types import ActionEnvelope, Observation, action_features, verify_contract_file
 from .upstream import verify_upstream_lock
@@ -59,6 +71,41 @@ def add_robot_parser(commands: argparse._SubParsersAction) -> None:
         "--lock", default="configs/upstream/edulite_a3.lock.json"
     )
     upstream_verify.add_argument("--checkout")
+
+    control = actions.add_parser("control")
+    control_actions = control.add_subparsers(dest="control_action", required=True)
+    control_serve = control_actions.add_parser("serve-mock")
+    control_serve.add_argument("--config", default="configs/robot/a3_mock_test.json")
+    control_serve.add_argument("--permit", required=True)
+    control_serve.add_argument(
+        "--socket", default="/run/a3-outcome-stack/control.sock"
+    )
+    control_serve.add_argument("--git-commit", required=True)
+    control_serve.add_argument(
+        "--calibration", default="configs/robot/a3_calibration.template.json"
+    )
+    control_serve.add_argument(
+        "--safety", default="configs/robot/a3_safety.template.json"
+    )
+    control_serve.add_argument("--socket-group")
+    control_client = control_actions.add_parser("client")
+    control_client.add_argument(
+        "--socket", default="/run/a3-outcome-stack/control.sock"
+    )
+    permit_create = control_actions.add_parser("permit-create")
+    permit_create.add_argument("--output", required=True)
+    permit_create.add_argument("--session-id", required=True)
+    permit_create.add_argument("--operator-uid", required=True, type=int)
+    permit_create.add_argument(
+        "--execution-mode", required=True, choices=("simulation", "real")
+    )
+    permit_create.add_argument("--git-commit", required=True)
+    permit_create.add_argument("--calibration", required=True)
+    permit_create.add_argument("--safety", required=True)
+    permit_create.add_argument("--duration-seconds", required=True, type=int)
+    permit_create.add_argument("--heartbeat-timeout-ns", required=True, type=int)
+    permit_create.add_argument("--authorize-real-enable", action="store_true")
+    permit_create.add_argument("--reader-group")
 
 
 def _mock_robot(config: dict[str, Any]) -> tuple[ManualClock, MockBackend, SafeRobot]:
@@ -196,6 +243,48 @@ def _strict_replay(path: str, strict: bool) -> dict[str, Any]:
     }
 
 
+def _create_operator_permit(args: argparse.Namespace) -> dict[str, Any]:
+    if os.name != "posix" or os.geteuid() != 0:
+        raise StateConflict("operator permits must be created by the local administrator")
+    if args.duration_seconds <= 0:
+        raise ValidationError("duration-seconds must be positive")
+    group_id: int | None = None
+    if args.reader_group:
+        import grp
+
+        try:
+            group_id = grp.getgrnam(args.reader_group).gr_gid
+        except KeyError as exc:
+            raise ValidationError(
+                f"operator permit reader group does not exist: {args.reader_group}"
+            ) from exc
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    document = build_operator_permit(
+        session_id=args.session_id,
+        operator_uid=args.operator_uid,
+        execution_mode=args.execution_mode,
+        git_commit=args.git_commit,
+        calibration_sha256=sha256_file(args.calibration),
+        safety_sha256=sha256_file(args.safety),
+        issued_at=now,
+        expires_at=now + timedelta(seconds=args.duration_seconds),
+        heartbeat_timeout_ns=args.heartbeat_timeout_ns,
+        real_enable_authorized=args.authorize_real_enable,
+    )
+    output = Path(args.output)
+    atomic_write_json(output, document, immutable=True)
+    os.chmod(output, 0o640)
+    if group_id is not None:
+        os.chown(output, 0, group_id)
+    return {
+        "status": "ok",
+        "session_id": document["session_id"],
+        "permit_sha256": document["permit_sha256"],
+        "expires_at_utc": document["expires_at_utc"],
+        "hardware_verified": False,
+    }
+
+
 def _robot_doctor(root: str, upstream_checkout: str | None) -> dict[str, Any]:
     root_path = Path(root).resolve()
     contract = verify_contract_file(root_path / "configs/robot/a3_contract_v1.json")
@@ -213,6 +302,84 @@ def _robot_doctor(root: str, upstream_checkout: str | None) -> dict[str, Any]:
     input_root = Path("/dev/input")
     if input_root.is_dir():
         input_devices = sorted(path.name for path in input_root.iterdir())
+    serial_devices = sorted(
+        path.name
+        for pattern in ("ttyACM*", "ttyUSB*")
+        for path in Path("/dev").glob(pattern)
+    )
+
+    group_names: set[str] = set()
+    role_groups = {
+        "collaborator": os.environ.get("A3_LOCAL_COLLAB_GROUP", "a3-collab"),
+        "operator": os.environ.get("A3_LOCAL_OPERATOR_GROUP", "a3-operator"),
+        "hardware_service": os.environ.get(
+            "A3_LOCAL_HARDWARE_GROUP", "a3-hardware"
+        ),
+    }
+    group_presence = {role: False for role in role_groups}
+    if os.name == "posix":
+        import grp
+
+        for group_id in os.getgroups():
+            try:
+                group_names.add(grp.getgrgid(group_id).gr_name)
+            except KeyError:
+                continue
+        for role, group_name in role_groups.items():
+            try:
+                grp.getgrnam(group_name)
+            except KeyError:
+                continue
+            group_presence[role] = True
+
+    if (hasattr(os, "geteuid") and os.geteuid() == 0) or "sudo" in group_names:
+        execution_role = "administrator"
+    elif role_groups["operator"] in group_names:
+        execution_role = "controlled_operator"
+    elif role_groups["collaborator"] in group_names:
+        execution_role = "collaborator"
+    else:
+        execution_role = "unassigned"
+
+    deployment_root = Path(
+        os.environ.get("A3_LOCAL_DEPLOYMENT_ROOT", "/opt/a3-outcome-stack")
+    )
+    session_socket = Path(
+        os.environ.get(
+            "A3_LOCAL_CONTROL_SOCKET", "/run/a3-outcome-stack/control.sock"
+        )
+    )
+    session_active = False
+    try:
+        session_active = stat.S_ISSOCK(session_socket.lstat().st_mode)
+    except OSError:
+        pass
+
+    gpu_inventory = []
+    try:
+        completed = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,driver_version,memory.total",
+                "--format=csv,noheader,nounits",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        for line in completed.stdout.splitlines():
+            fields = [field.strip() for field in line.split(",")]
+            if len(fields) == 3:
+                gpu_inventory.append(
+                    {
+                        "name": fields[0],
+                        "driver_version": fields[1],
+                        "memory_mib": int(fields[2]),
+                    }
+                )
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
     return {
         "status": "ok",
         "contract_schema": contract["schema_version"],
@@ -224,7 +391,28 @@ def _robot_doctor(root: str, upstream_checkout: str | None) -> dict[str, Any]:
             "el_a3_sdk": importlib.util.find_spec("el_a3_sdk") is not None,
         },
         "can_interfaces": can_interfaces,
+        "serial_devices": serial_devices,
         "input_devices": input_devices,
+        "gpu_inventory": gpu_inventory,
+        "execution_role": execution_role,
+        "role_boundary": {
+            "groups_configured": group_presence,
+            "raw_hardware_access_granted_to_humans": False,
+            "operator_reset_allowed": False,
+        },
+        "deployment": {
+            "exists": deployment_root.is_dir(),
+            "writable_by_current_process": deployment_root.is_dir()
+            and os.access(deployment_root, os.W_OK),
+        },
+        "operator_session": {
+            "unix_socket_active": session_active,
+            "network_listener_configured": False,
+        },
+        "hardware_available": False,
+        "hardware_tests_executed": False,
+        "motor_enable_executed": False,
+        "real_can_traffic_executed": False,
         "hardware_verified": False,
         "hardware_branch": "not_executed",
     }
@@ -254,4 +442,18 @@ def run_robot_command(args: argparse.Namespace) -> Any:
         return _strict_replay(args.trace, args.strict)
     if args.robot_action == "upstream" and args.upstream_action == "verify":
         return verify_upstream_lock(args.lock, args.checkout)
+    if args.robot_action == "control" and args.control_action == "serve-mock":
+        return serve_mock_control(
+            config_path=args.config,
+            permit_path=args.permit,
+            socket_path=args.socket,
+            git_commit=args.git_commit,
+            calibration_path=args.calibration,
+            safety_path=args.safety,
+            socket_group=args.socket_group,
+        )
+    if args.robot_action == "control" and args.control_action == "client":
+        return run_control_client(args.socket)
+    if args.robot_action == "control" and args.control_action == "permit-create":
+        return _create_operator_permit(args)
     raise ValidationError("unsupported robot command")

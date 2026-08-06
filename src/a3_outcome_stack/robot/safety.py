@@ -23,6 +23,10 @@ class SafetyState(str, Enum):
 
 class StopReason(str, Enum):
     OPERATOR_REQUEST = "operator_request"
+    OPERATOR_DISCONNECT = "operator_disconnect"
+    OPERATOR_HEARTBEAT_TIMEOUT = "operator_heartbeat_timeout"
+    PERMIT_EXPIRED = "permit_expired"
+    PERMIT_INVALID = "permit_invalid"
     WATCHDOG_TIMEOUT = "watchdog_timeout"
     STALE_ACTION = "stale_action"
     OUT_OF_ORDER = "out_of_order"

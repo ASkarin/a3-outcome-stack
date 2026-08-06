@@ -134,6 +134,13 @@ class SafeRobot:
         self.backend.request_safe_stop(reason)
         self.supervisor.safe_stop(reason)
 
+    def request_safe_stop(self, reason: StopReason = StopReason.OPERATOR_REQUEST) -> None:
+        """Expose the latched safe-stop path without exposing the backend directly."""
+
+        if self.state == SafetyState.DISCONNECTED:
+            raise StateConflict("cannot safe-stop a disconnected backend")
+        self._safe_stop(reason)
+
     def _validation_stop_reason(self, exc: ValidationError) -> StopReason:
         message = str(exc).lower()
         if "non-finite" in message:

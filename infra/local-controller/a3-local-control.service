@@ -1,0 +1,39 @@
+[Unit]
+Description=A3 OutcomeStack local mock control boundary
+After=local-fs.target
+ConditionPathExists=/etc/a3-outcome-stack/local-control.env
+
+[Service]
+Type=simple
+DynamicUser=yes
+SupplementaryGroups=a3-collab a3-operator a3-hardware
+EnvironmentFile=/etc/a3-outcome-stack/local-control.env
+RuntimeDirectory=a3-outcome-stack
+RuntimeDirectoryMode=0750
+UMask=0007
+ExecStart=/opt/a3-outcome-stack/current/.venv/bin/a3-outcome-stack robot control serve-mock --config ${A3_CONTROL_CONFIG} --permit ${A3_CONTROL_PERMIT} --socket ${A3_CONTROL_SOCKET} --git-commit ${A3_DEPLOYED_COMMIT} --calibration ${A3_CALIBRATION_CONFIG} --safety ${A3_SAFETY_CONFIG} --socket-group ${A3_OPERATOR_GROUP}
+Restart=no
+KillSignal=SIGINT
+TimeoutStopSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+ReadOnlyPaths=/opt/a3-outcome-stack /etc/a3-outcome-stack
+ReadWritePaths=/run/a3-outcome-stack /var/lib/a3-outcome-stack
+
+[Install]
+WantedBy=multi-user.target
