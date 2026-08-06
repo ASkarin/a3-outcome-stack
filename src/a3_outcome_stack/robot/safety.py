@@ -22,11 +22,7 @@ class SafetyState(str, Enum):
 
 
 class StopReason(str, Enum):
-    OPERATOR_REQUEST = "operator_request"
-    OPERATOR_DISCONNECT = "operator_disconnect"
-    OPERATOR_HEARTBEAT_TIMEOUT = "operator_heartbeat_timeout"
-    PERMIT_EXPIRED = "permit_expired"
-    PERMIT_INVALID = "permit_invalid"
+    ADMINISTRATOR_REQUEST = "administrator_request"
     WATCHDOG_TIMEOUT = "watchdog_timeout"
     STALE_ACTION = "stale_action"
     OUT_OF_ORDER = "out_of_order"
@@ -104,9 +100,7 @@ class SafetySupervisor:
 
     def transition(self, target: SafetyState, reason: str) -> None:
         if target not in _ALLOWED[self._state]:
-            raise StateConflict(
-                f"illegal safety transition {self._state.value} -> {target.value}"
-            )
+            raise StateConflict(f"illegal safety transition {self._state.value} -> {target.value}")
         source = self._state
         self._state = target
         self._last_reason = reason
@@ -120,10 +114,7 @@ class SafetySupervisor:
             "monotonic_ns": recorded_ns,
             "clock_domain_id": self._clock.domain_id,
         }
-        if (
-            self._last_transition_ns is not None
-            and observed_ns < self._last_transition_ns
-        ):
+        if self._last_transition_ns is not None and observed_ns < self._last_transition_ns:
             recorded_ns = self._last_transition_ns
             transition["monotonic_ns"] = recorded_ns
             transition["observed_regressed_monotonic_ns"] = observed_ns
@@ -164,18 +155,18 @@ class SafetySupervisor:
             raise StateConflict("cannot latch E_STOP while disconnected")
         self.transition(SafetyState.E_STOP, StopReason.E_STOP.value)
 
-    def reset_to_disabled(self, *, healthy: bool, operator_acknowledged: bool) -> None:
+    def reset_to_disabled(self, *, healthy: bool, administrator_acknowledged: bool) -> None:
         if self._state not in {
             SafetyState.SAFE_STOP,
             SafetyState.FAULT,
             SafetyState.E_STOP,
         }:
             raise StateConflict("reset is allowed only from a latched stop state")
-        if not healthy or not operator_acknowledged:
+        if not healthy or not administrator_acknowledged:
             raise StateConflict(
-                "reset requires healthy backend and explicit operator acknowledgement"
+                "reset requires a healthy backend and explicit administrator acknowledgement"
             )
-        self.transition(SafetyState.DISABLED, "explicit_operator_reset")
+        self.transition(SafetyState.DISABLED, "explicit_administrator_reset")
 
     def disconnected(self) -> None:
         if self._state == SafetyState.DISCONNECTED:

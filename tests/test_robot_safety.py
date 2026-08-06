@@ -41,9 +41,7 @@ def make_robot():
 
 def action(clock, *, sequence=0, values=(0.1,) * 7, deadline_offset=100):
     now = clock.now_ns()
-    return ActionEnvelope(
-        tuple(values), sequence, now, now + deadline_offset, clock.domain_id
-    )
+    return ActionEnvelope(tuple(values), sequence, now, now + deadline_offset, clock.domain_id)
 
 
 def test_valid_action_enters_active_and_watchdog_latches_safe_stop():
@@ -57,8 +55,8 @@ def test_valid_action_enters_active_and_watchdog_latches_safe_stop():
     with pytest.raises(StateConflict):
         robot.send_action(action(clock, sequence=1))
     with pytest.raises(StateConflict):
-        robot.reset(operator_acknowledged=False)
-    robot.reset(operator_acknowledged=True)
+        robot.reset(administrator_acknowledged=False)
+    robot.reset(administrator_acknowledged=True)
     assert robot.state == SafetyState.DISABLED
 
 
@@ -66,27 +64,19 @@ def test_valid_action_enters_active_and_watchdog_latches_safe_stop():
     ("candidate", "expected_reason"),
     [
         (
-            ActionEnvelope(
-                (math.nan,) * 7, 0, 1000000000, 1000000100, "stage1a-mock-clock-v1"
-            ),
+            ActionEnvelope((math.nan,) * 7, 0, 1000000000, 1000000100, "stage1a-mock-clock-v1"),
             StopReason.NONFINITE,
         ),
         (
-            ActionEnvelope(
-                (0.0,) * 6, 0, 1000000000, 1000000100, "stage1a-mock-clock-v1"
-            ),
+            ActionEnvelope((0.0,) * 6, 0, 1000000000, 1000000100, "stage1a-mock-clock-v1"),
             StopReason.SHAPE_MISMATCH,
         ),
         (
-            ActionEnvelope(
-                (2.0,) * 7, 0, 1000000000, 1000000100, "stage1a-mock-clock-v1"
-            ),
+            ActionEnvelope((2.0,) * 7, 0, 1000000000, 1000000100, "stage1a-mock-clock-v1"),
             StopReason.LIMIT_VIOLATION,
         ),
         (
-            ActionEnvelope(
-                (0.0,) * 7, 1, 1000000000, 1000000100, "stage1a-mock-clock-v1"
-            ),
+            ActionEnvelope((0.0,) * 7, 1, 1000000000, 1000000100, "stage1a-mock-clock-v1"),
             StopReason.OUT_OF_ORDER,
         ),
         (
@@ -129,9 +119,9 @@ def test_device_fault_latches_fault_and_requires_explicit_reset():
         robot.get_observation()
     assert robot.state == SafetyState.FAULT
     with pytest.raises(StateConflict, match="unhealthy"):
-        robot.reset(operator_acknowledged=True)
+        robot.reset(administrator_acknowledged=True)
     backend.clear_faults()
-    robot.reset(operator_acknowledged=True)
+    robot.reset(administrator_acknowledged=True)
     assert robot.state == SafetyState.DISABLED
 
 
@@ -142,7 +132,7 @@ def test_emergency_stop_is_latched_and_not_automatic():
     assert backend.stop_reasons[-1] == StopReason.E_STOP.value
     with pytest.raises(StateConflict):
         robot.enable()
-    robot.reset(operator_acknowledged=True)
+    robot.reset(administrator_acknowledged=True)
     assert robot.state == SafetyState.DISABLED
 
 
@@ -154,9 +144,7 @@ def test_clock_regression_latches_safe_stop():
     assert robot.state == SafetyState.SAFE_STOP
     assert backend.stop_reasons[-1] == StopReason.CLOCK_REGRESSION.value
     transition = robot.supervisor.transitions[-1]
-    assert (
-        transition["monotonic_ns"] >= robot.supervisor.transitions[-2]["monotonic_ns"]
-    )
+    assert transition["monotonic_ns"] >= robot.supervisor.transitions[-2]["monotonic_ns"]
     assert "observed_regressed_monotonic_ns" in transition
 
 

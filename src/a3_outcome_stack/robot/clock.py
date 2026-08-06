@@ -38,9 +38,7 @@ class ManualClock:
 
     def __post_init__(self) -> None:
         if self.current_ns < 0 or not self.domain_id:
-            raise ValidationError(
-                "manual clock requires a non-negative time and domain_id"
-            )
+            raise ValidationError("manual clock requires a non-negative time and domain_id")
 
     def now_ns(self) -> int:
         return self.current_ns

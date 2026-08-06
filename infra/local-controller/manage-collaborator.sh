@@ -3,7 +3,6 @@ set -euo pipefail
 export LC_ALL=C
 
 collab_group=a3-collab
-operator_group=a3-operator
 archive_root=/var/lib/a3-outcome-stack/admin/revocations
 managed_root=/var/lib/a3-outcome-stack/admin/collaborators
 
@@ -20,11 +19,7 @@ account=${2:-}
 case "${action}" in
     provision)
         key_file=${3:-}
-        operator=no
-        [[ $# -le 4 ]] || fail "too many provision arguments"
-        [[ -z "${4:-}" || "${4:-}" == "--operator" ]] || \
-            fail "the only supported provision option is --operator"
-        [[ "${4:-}" == "--operator" ]] && operator=yes
+        [[ $# -eq 3 ]] || fail "provision requires an account and one public-key file"
         [[ "${A3_TAILNET_GRANT_CONFIRMED:-}" == "YES" ]] || \
             fail "confirm the individual tailnet Grant first"
         [[ -f "${key_file}" && -s "${key_file}" ]] || fail "missing public-key file"
@@ -37,7 +32,6 @@ case "${action}" in
         esac
         ssh-keygen -l -f "${key_file}" >/dev/null || fail "invalid public-key file"
         getent group "${collab_group}" >/dev/null || fail "collaborator group is absent"
-        getent group "${operator_group}" >/dev/null || fail "operator group is absent"
         ! id "${account}" >/dev/null 2>&1 || fail "account already exists"
         adduser --disabled-password --gecos "" "${account}"
         account_uid=$(id -u "${account}")
@@ -47,11 +41,7 @@ case "${action}" in
         unset random_password
         usermod --password "${password_hash}" "${account}"
         unset password_hash
-        groups=${collab_group}
-        if [[ "${operator}" == "yes" ]]; then
-            groups+="${groups:+,}${operator_group}"
-        fi
-        usermod --shell /bin/bash --groups "${groups}" "${account}"
+        usermod --shell /bin/bash --groups "${collab_group}" "${account}"
         home=$(getent passwd "${account}" | cut -d: -f6)
         [[ -n "${home}" && "${home}" != "/" ]] || fail "unsafe home directory"
         install -d -m 0700 -o "${account}" -g "${account}" "${home}/.ssh"
@@ -96,6 +86,6 @@ case "${action}" in
         rm -f -- "${managed_root}/${account}"
         ;;
     *)
-        fail "usage: $0 provision <account> <public-key-file> [--operator] | revoke <account>"
+        fail "usage: $0 provision <account> <public-key-file> | revoke <account>"
         ;;
 esac

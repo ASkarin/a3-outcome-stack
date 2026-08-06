@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
+from typing import Protocol, Sequence, runtime_checkable
 
-from a3_outcome_stack.ops.errors import IntegrityError, StateConflict, ValidationError
+from a3_outcome_stack.ops.errors import StateConflict, ValidationError
 
 from .clock import Clock
 from .safety import SafetyState, SafetySupervisor, StopReason, Watchdog
@@ -15,19 +15,10 @@ from .types import ActionEnvelope, ActionReceipt, Observation
 @runtime_checkable
 class RobotBackend(Protocol):
     @property
-    def observation_features(self) -> Mapping[str, Any]: ...
-
-    @property
-    def action_features(self) -> Mapping[str, Any]: ...
-
-    @property
     def is_connected(self) -> bool: ...
 
     @property
     def is_healthy(self) -> bool: ...
-
-    @property
-    def hardware_verified(self) -> bool: ...
 
     def connect(self) -> None: ...
 
@@ -55,39 +46,28 @@ class SafeRobot:
         clock: Clock,
         *,
         watchdog_timeout_ns: int,
-        joint_lower: Sequence[float],
-        joint_upper: Sequence[float],
+        joint_lower: Sequence[float] | None,
+        joint_upper: Sequence[float] | None,
     ):
-        if len(joint_lower) != 7 or len(joint_upper) != 7:
-            raise ValidationError(
-                "SafeRobot requires seven lower and upper joint limits"
-            )
+        if (joint_lower is None) != (joint_upper is None):
+            raise ValidationError("joint limits must be provided as a lower/upper pair")
+        if joint_lower is not None and (len(joint_lower) != 7 or len(joint_upper) != 7):
+            raise ValidationError("SafeRobot requires seven lower and upper joint limits")
         self.backend = backend
         self.clock = clock
         self.supervisor = SafetySupervisor(clock)
         self.watchdog = Watchdog(watchdog_timeout_ns)
-        self._joint_lower = tuple(float(value) for value in joint_lower)
-        self._joint_upper = tuple(float(value) for value in joint_upper)
-        if not all(
-            math.isfinite(value) for value in self._joint_lower + self._joint_upper
-        ):
-            raise ValidationError("joint limits must be finite")
-        if not all(
-            lower < upper for lower, upper in zip(self._joint_lower, self._joint_upper)
-        ):
-            raise ValidationError(
-                "each lower joint limit must be below its upper limit"
-            )
+        self._joint_lower: tuple[float, ...] | None = None
+        self._joint_upper: tuple[float, ...] | None = None
+        if joint_lower is not None and joint_upper is not None:
+            self._joint_lower = tuple(float(value) for value in joint_lower)
+            self._joint_upper = tuple(float(value) for value in joint_upper)
+            if not all(math.isfinite(value) for value in self._joint_lower + self._joint_upper):
+                raise ValidationError("joint limits must be finite")
+            if not all(lower < upper for lower, upper in zip(self._joint_lower, self._joint_upper)):
+                raise ValidationError("each lower joint limit must be below its upper limit")
         self._last_sequence_id = -1
         self._last_clock_ns: int | None = None
-
-    @property
-    def observation_features(self) -> Mapping[str, Any]:
-        return self.backend.observation_features
-
-    @property
-    def action_features(self) -> Mapping[str, Any]:
-        return self.backend.action_features
 
     @property
     def state(self) -> SafetyState:
@@ -113,6 +93,8 @@ class SafeRobot:
     def enable(self) -> None:
         if self.state != SafetyState.DISABLED:
             raise StateConflict("enable requires DISABLED state")
+        if self._joint_lower is None or self._joint_upper is None:
+            raise StateConflict("enable requires frozen joint limits")
         self.backend.enable()
         self._now()
         self.supervisor.ready()
@@ -134,7 +116,7 @@ class SafeRobot:
         self.backend.request_safe_stop(reason)
         self.supervisor.safe_stop(reason)
 
-    def request_safe_stop(self, reason: StopReason = StopReason.OPERATOR_REQUEST) -> None:
+    def request_safe_stop(self, reason: StopReason = StopReason.ADMINISTRATOR_REQUEST) -> None:
         """Expose the latched safe-stop path without exposing the backend directly."""
 
         if self.state == SafetyState.DISCONNECTED:
@@ -168,11 +150,12 @@ class SafeRobot:
         if action.sequence_id != self._last_sequence_id + 1:
             self._safe_stop(StopReason.OUT_OF_ORDER)
             raise ValidationError("action sequence is not contiguous")
+        if self._joint_lower is None or self._joint_upper is None:
+            self._safe_stop(StopReason.LIMIT_VIOLATION)
+            raise StateConflict("actions require frozen joint limits")
         if any(
             value < lower or value > upper
-            for value, lower, upper in zip(
-                action.values, self._joint_lower, self._joint_upper
-            )
+            for value, lower, upper in zip(action.values, self._joint_lower, self._joint_upper)
         ):
             self._safe_stop(StopReason.LIMIT_VIOLATION)
             raise ValidationError("action violates configured joint limits")
@@ -180,7 +163,7 @@ class SafeRobot:
         try:
             receipt = self.backend.send_action(action)
             receipt.validate(action)
-        except (IntegrityError, StateConflict, ValidationError, RuntimeError):
+        except Exception:
             self._safe_stop(StopReason.BACKEND_EXCEPTION)
             raise
         if not receipt.accepted:
@@ -199,7 +182,7 @@ class SafeRobot:
         try:
             observation = self.backend.get_observation()
             observation.validate()
-        except (IntegrityError, StateConflict, ValidationError, RuntimeError) as exc:
+        except Exception as exc:
             reason = (
                 StopReason.FEEDBACK_TIMEOUT
                 if "feedback timeout" in str(exc).lower()
@@ -243,13 +226,13 @@ class SafeRobot:
         self.backend.emergency_stop()
         self.supervisor.emergency_stop()
 
-    def reset(self, *, operator_acknowledged: bool) -> None:
+    def reset(self, *, administrator_acknowledged: bool) -> None:
         if not self.backend.is_healthy:
             raise StateConflict("backend remains unhealthy")
         self.backend.disable()
         self.supervisor.reset_to_disabled(
             healthy=self.backend.is_healthy,
-            operator_acknowledged=operator_acknowledged,
+            administrator_acknowledged=administrator_acknowledged,
         )
         self.watchdog.last_feed_ns = None
         self._last_sequence_id = -1

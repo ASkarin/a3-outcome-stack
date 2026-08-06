@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=65"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lerobot_robot_a3"
+version = "0.1.0"
+description = "LeRobot hardware plugin for the EduLite A3"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "a3-outcome-stack",
+    "el_a3_sdk @ git+https://github.com/RobStride/EDULITE_A3.git@ea7231f784ebb37e4c4120f7be8e3670514dc9ee#subdirectory=el_a3_sdk ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "lerobot @ git+https://github.com/huggingface/lerobot.git@30da8e687a6dfc617fcd94afc367ac7071c376ce ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv.sources]
+a3-outcome-stack = { workspace = true }

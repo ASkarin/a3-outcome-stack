@@ -1,4 +1,4 @@
-"""Deterministic, explicitly non-physical robot backend for tests and replay."""
+"""Deterministic, explicitly non-physical backend for safety and plugin tests."""
 
 from __future__ import annotations
 
@@ -14,23 +14,15 @@ from .types import (
     Observation,
     RobotStatus,
     SensorTimestamps,
-    action_features,
-    observation_features,
 )
 
 
 class MockBackend:
     def __init__(self, clock: Clock, config: Mapping[str, Any]):
         if config.get("backend") != "mock" or config.get("simulation_only") is not True:
-            raise ValidationError(
-                "MockBackend requires an explicitly simulation-only mock config"
-            )
+            raise ValidationError("MockBackend requires an explicitly simulation-only mock config")
         self.clock = clock
         self.config = dict(config)
-        self._observation_features = observation_features(
-            config.get("camera_features", {})
-        )
-        self._action_features = action_features()
         self._connected = False
         self._enabled = False
         self._healthy = True
@@ -43,24 +35,12 @@ class MockBackend:
         self._stop_reasons: list[str] = []
 
     @property
-    def observation_features(self) -> Mapping[str, Any]:
-        return self._observation_features
-
-    @property
-    def action_features(self) -> Mapping[str, Any]:
-        return self._action_features
-
-    @property
     def is_connected(self) -> bool:
         return self._connected
 
     @property
     def is_healthy(self) -> bool:
         return self._healthy and not any(self._joint_faults)
-
-    @property
-    def hardware_verified(self) -> bool:
-        return False
 
     @property
     def last_action(self) -> ActionEnvelope | None:
@@ -121,9 +101,7 @@ class MockBackend:
         sent = self.clock.now_ns()
         previous = self._positions
         self._positions = tuple(float(value) for value in action.values)
-        self._velocities = tuple(
-            new - old for old, new in zip(previous, self._positions)
-        )
+        self._velocities = tuple(new - old for old, new in zip(previous, self._positions))
         self._efforts = (0.0,) * 7
         self._last_action = action
         ack = self.clock.now_ns()

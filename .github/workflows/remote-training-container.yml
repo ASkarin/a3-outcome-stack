@@ -38,7 +38,7 @@ jobs:
         run: |
           git config --global http.version HTTP/1.1
           for attempt in 1 2 3; do
-            if uv sync --frozen --no-install-project --extra remote-training --group dev; then
+            if uv sync --all-packages --frozen --extra remote-training --group dev; then
               exit 0
             fi
             sleep "$((attempt * 5))"
@@ -46,25 +46,17 @@ jobs:
           exit 1
       - name: Run project tests
         run: uv run --no-sync pytest
-      - name: Run Ruff
-        run: >-
-          uv run --no-sync ruff check
-          src
-          tests
-          infra/container/lib
-          infra/container/bin/a3-artifact-fetch
-          infra/container/bin/a3-artifact-promote
-          infra/container/bin/a3-env-doctor
-          infra/container/bin/a3-gpu-run
-          infra/container/bin/a3-python
-          infra/container/acceptance
-      - name: Validate shell syntax
+      - name: Run Ruff lint
+        run: uv run --no-sync ruff check .
+      - name: Verify Ruff formatting
+        run: uv run --no-sync ruff format --check .
+      - name: Validate every tracked shell script
         run: |
-          bash -n infra/container/a3-compose
-          bash -n infra/container/entrypoint.sh
-          bash -n infra/container/init-shared-python.sh
-          bash -n infra/container/profile.sh
-          bash -n infra/container/acceptance/run_gpu_acceptance.sh
+          while IFS= read -r file; do
+            if head -n 1 "$file" | grep -Eq '^#!.*\b(bash|sh)\b'; then
+              bash -n "$file"
+            fi
+          done < <(git ls-files)
       - name: Validate container policy
         run: uv run --no-sync pytest tests/test_container_policy.py
 

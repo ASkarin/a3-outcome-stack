@@ -9,12 +9,9 @@ from a3_outcome_stack.ops.canonical import load_json
 from a3_outcome_stack.ops.errors import StateConflict
 from a3_outcome_stack.robot.a3_sdk import A3SdkBackend, validate_hardware_ready
 from a3_outcome_stack.robot.clock import ManualClock
-from a3_outcome_stack.robot.mock import MockBackend
 from a3_outcome_stack.robot.types import (
     ActionEnvelope,
-    action_features,
     rpy_to_quaternion_xyzw,
-    verify_contract_file,
 )
 
 ROOT = Path(__file__).parents[1]
@@ -122,24 +119,13 @@ def _frozen_configs():
     return calibration, safety
 
 
-def test_contract_and_features_are_available_before_connect():
-    contract = verify_contract_file(ROOT / "configs/robot/a3_contract_v1.json")
-    config = load_json(ROOT / "configs/robot/a3_mock_test.json")
-    backend = MockBackend(ManualClock(domain_id=config["clock_domain_id"]), config)
-    assert contract["joint_order"] == ["L1", "L2", "L3", "L4", "L5", "L6", "L7"]
-    assert backend.observation_features["joint_position"]["shape"] == [7]
-    assert backend.observation_features["camera.mock_rgb"]["shape"] == [8, 8, 3]
-    assert backend.action_features == action_features()
-    assert not backend.is_connected
-
-
 def test_rpy_is_converted_to_normalized_xyzw_quaternion():
     quaternion = rpy_to_quaternion_xyzw(0.0, 0.0, math.pi / 2)
     assert math.sqrt(sum(value * value for value in quaternion)) == pytest.approx(1.0)
     assert quaternion == pytest.approx((0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5)))
 
 
-def test_sdk_backend_refuses_unfrozen_enable_but_allows_fake_readonly_connect():
+def test_sdk_backend_refuses_unfrozen_calibration_before_vendor_construction():
     calibration = load_json(ROOT / "configs/robot/a3_calibration.template.json")
     safety = load_json(ROOT / "configs/robot/a3_safety.template.json")
     clock = ManualClock(current_ns=10, domain_id="sdk-test")
@@ -157,13 +143,9 @@ def test_sdk_backend_refuses_unfrozen_enable_but_allows_fake_readonly_connect():
         safety,
         vendor_factory=factory,
     )
-    backend.connect()
-    assert created[0].kwargs["start_sdk_joint_limit"] is False
     with pytest.raises(StateConflict, match="calibration is not frozen"):
-        backend.enable()
-    assert "EnableArm" not in created[0].calls
-    assert backend.hardware_verified is False
-    backend.disconnect()
+        backend.connect()
+    assert created == []
 
 
 def test_sdk_backend_maps_pinned_vendor_contract_with_test_only_frozen_values():
@@ -184,6 +166,7 @@ def test_sdk_backend_maps_pinned_vendor_contract_with_test_only_frozen_values():
         calibration,
         safety,
         vendor_factory=factory,
+        apply_safety_limits=True,
     )
     backend.connect()
     assert created[0].kwargs["start_sdk_joint_limit"] is True

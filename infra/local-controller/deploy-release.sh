@@ -27,7 +27,8 @@ preinstall_registry_from_mirror() {
         fail "A3_PYPI_MIRROR must be an HTTPS package index"
     local requirements=${project}/.a3-mirror-requirements.txt
     UV_PYTHON_INSTALL_DIR=/opt/a3/python \
-        uv export --project "${project}" --frozen --extra local-controller --no-dev \
+        uv export --project "${project}" --all-packages --frozen \
+            --extra local-controller --no-dev \
         --no-emit-project --no-emit-package el-a3-sdk --no-emit-package lerobot \
         --no-emit-package torch --no-emit-package torchvision \
         --format requirements-txt --output-file "${requirements}"
@@ -76,12 +77,12 @@ case "${action}" in
             tar -xf - -C "${temporary}"
         preinstall_registry_from_mirror "${temporary}"
         UV_PYTHON_INSTALL_DIR=/opt/a3/python \
-            uv sync --project "${temporary}" --frozen --extra local-controller --no-dev \
-            --no-editable
+            uv sync --project "${temporary}" --all-packages --frozen \
+            --extra local-controller --no-dev --no-editable
         mv -- "${temporary}" "${destination}"
         UV_PYTHON_INSTALL_DIR=/opt/a3/python \
-            uv sync --project "${destination}" --frozen --extra local-controller --no-dev \
-            --no-editable
+            uv sync --project "${destination}" --all-packages --frozen \
+            --extra local-controller --no-dev --no-editable
         printf '%s\n' "${commit}" >"${destination}/${release_marker}"
         chown -R root:"${collab_group}" "${destination}"
         chmod -R u=rwX,g=rX,o= "${destination}"

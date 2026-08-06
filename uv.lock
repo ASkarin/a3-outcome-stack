@@ -13,6 +13,12 @@ required-markers = [
     "platform_machine == 'x86_64' and sys_platform == 'linux'",
 ]
 
+[manifest]
+members = [
+    "a3-outcome-stack",
+    "lerobot-robot-a3",
+]
+
 [[package]]
 name = "a3-outcome-stack"
 version = "0.2.0"
@@ -21,7 +27,7 @@ source = { editable = "." }
 [package.optional-dependencies]
 local-controller = [
     { name = "el-a3-sdk", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
-    { name = "lerobot", extra = ["smolvla"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "lerobot", extra = ["core-scripts", "gamepad", "intelrealsense", "smolvla"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "torch", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "torchvision", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
@@ -41,7 +47,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "el-a3-sdk", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'local-controller'", git = "https://github.com/RobStride/EDULITE_A3.git?subdirectory=el_a3_sdk&rev=ea7231f784ebb37e4c4120f7be8e3670514dc9ee" },
-    { name = "lerobot", extras = ["smolvla"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'local-controller'", git = "https://github.com/huggingface/lerobot.git?rev=30da8e687a6dfc617fcd94afc367ac7071c376ce" },
+    { name = "lerobot", extras = ["core-scripts", "gamepad", "intelrealsense", "smolvla"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'local-controller'", git = "https://github.com/huggingface/lerobot.git?rev=30da8e687a6dfc617fcd94afc367ac7071c376ce" },
     { name = "lerobot", extras = ["smolvla", "training"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'remote-training'", git = "https://github.com/huggingface/lerobot.git?rev=30da8e687a6dfc617fcd94afc367ac7071c376ce" },
     { name = "tensorboard", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'remote-training'", specifier = "==2.21.0" },
     { name = "torch", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'local-controller'", specifier = "==2.11.0+cu128", index = "https://download.pytorch.org/whl/cu128" },
@@ -321,6 +327,18 @@ wheels = [
 ]
 
 [[package]]
+name = "deepdiff"
+version = "8.6.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "orderly-set" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/89/50/767448e792d41bfb6094ee317a355c1cb221dca24b2e178e2203bbea2a77/deepdiff-8.6.2.tar.gz", hash = "sha256:186dcbd181e4d76cef11ab05f802d0056c5d6083c5a6748c1473e9d7481e183e", size = 634860, upload-time = "2026-03-18T17:16:33.785Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2b/5f/c52bd1255db763d0cdcb7084d2e90c42119cb229302c56bdf1d0aa78abd2/deepdiff-8.6.2-py3-none-any.whl", hash = "sha256:4d22034a866c3928303a9332c279362f714192d9305bac17c498720d095fd1b4", size = 91979, upload-time = "2026-03-18T17:16:32.171Z" },
+]
+
+[[package]]
 name = "dill"
 version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
@@ -370,6 +388,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "evdev"
+version = "1.9.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a5/f5/397b61091120a9ca5001041dd7bf76c385b3bfd67a0e5bcb74b852bd22a4/evdev-1.9.3.tar.gz", hash = "sha256:2c140e01ac8437758fa23fe5c871397412461f42d421aa20241dc8fe8cfccbc9", size = 32723, upload-time = "2026-02-05T21:54:24.987Z" }
+
+[[package]]
 name = "farama-notifications"
 version = "0.0.6"
 source = { registry = "https://pypi.org/simple" }
@@ -385,6 +409,17 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c0/80/8232b582c4b318b817cf1274ba74976b07b34d35ef439b3eb948f98645a1/filelock-3.32.0.tar.gz", hash = "sha256:7be2ad23a14607ccc71808e68fe30848aeace7058ace17852f68e2a68e310402", size = 213757, upload-time = "2026-07-21T13:17:42.898Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/06/79/b4c714bef36bc4ec2beeae1e0c124f0223888cd8c6feb1cdc56038116920/filelock-3.32.0-py3-none-any.whl", hash = "sha256:d396bea984af47333ef05e50eae7eff88c84256de6112aea0ec48a233c064fe3", size = 97732, upload-time = "2026-07-21T13:17:41.55Z" },
+]
+
+[[package]]
+name = "foxglove-sdk"
+version = "0.25.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ca/25/a0bb15179539bf144f8bf13b176518886191710b40fe4a8173b461d90313/foxglove_sdk-0.25.3.tar.gz", hash = "sha256:32f1066401c37538d478b4a8ecaaae4e9dd019f9f75d3ef47494bfe7d4273dee", size = 549908, upload-time = "2026-06-25T00:24:26.614Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b2/15/a9182e0d3bbee09261e79249a9d608af4739e6e25791bcd59b23b6522b34/foxglove_sdk-0.25.3-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:18d7dd5e61afc65163438b858a70bec3a30126de1664a97358d4403e20db5eb1", size = 2209079, upload-time = "2026-06-25T00:24:13.575Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/37/6313a16cecd97b0b733967a92f85e4d1929cbbd521433a4db5e070aa850a/foxglove_sdk-0.25.3-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:bcc894b88188d8169973cfbb1370300f671760adea9d6e9447e5a03b2289527d", size = 19220466, upload-time = "2026-06-25T00:24:17.491Z" },
+    { url = "https://files.pythonhosted.org/packages/53/bd/93dd3cd685b4605877facc12b4f1b7ffb4894cd5040813c9c6fd262e2e55/foxglove_sdk-0.25.3-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:2dbdef29d2b6115bbbc478f309ac4937fb8765b42681537db99a15282ebaac6f", size = 2468866, upload-time = "2026-06-25T00:24:21.775Z" },
 ]
 
 [[package]]
@@ -481,6 +516,19 @@ sdist = { url = "https://files.pythonhosted.org/packages/63/39/67be8d71f900d9a55
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d3/35/db860aa3a0780660324a506ad4b3d322ddc6ecbba4b9340aed0942cbf21c/hf_xet-1.5.2-cp38-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:db78c39c83d6279daddc98e2238f373ab8980685556d42472b4ec51abcf03e8c", size = 4428006, upload-time = "2026-07-16T17:29:46.996Z" },
     { url = "https://files.pythonhosted.org/packages/07/a9/c050bc2743a2bcd68928bfee157b08681667a164a24ec95fbfcfcd717e08/hf_xet-1.5.2-cp38-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:cde8cd167126bb6109b2ceb19b844433a4988643e8f3e01dd9dd0e4a34535097", size = 4636716, upload-time = "2026-07-16T17:29:51.62Z" },
+]
+
+[[package]]
+name = "hidapi"
+version = "0.14.0.post4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "setuptools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/47/72/21ccaaca6ffb06f544afd16191425025d831c2a6d318635e9c8854070f2d/hidapi-0.14.0.post4.tar.gz", hash = "sha256:48fce253e526d17b663fbf9989c71c7ef7653ced5f4be65f1437c313fb3dbdf6", size = 174388, upload-time = "2024-11-19T16:38:10.316Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ba/c8/52134f7d3e09fd4feb7756ccd872c55bfd1899ee81ceed4f8ad5ae39f457/hidapi-0.14.0.post4-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:fedb9c3be6a2376de436d13fcb37a686a9b6bc988585bcc4f5ec61cad925e794", size = 1077222, upload-time = "2024-11-19T16:36:38.062Z" },
+    { url = "https://files.pythonhosted.org/packages/01/e9/14e63f1a5ec0c2430b84695d28e994b2b63398544adb20d910f6dc41ac66/hidapi-0.14.0.post4-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:707b1ebf5cb051b020e94b039e603351bf2e6620b48fc970228e0dd5d3a91fca", size = 701667, upload-time = "2024-11-19T16:36:43.135Z" },
 ]
 
 [[package]]
@@ -597,6 +645,26 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+core-scripts = [
+    { name = "av" },
+    { name = "datasets" },
+    { name = "deepdiff" },
+    { name = "foxglove-sdk" },
+    { name = "jsonlines" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+    { name = "pynput" },
+    { name = "pyserial" },
+    { name = "rerun-sdk" },
+    { name = "torchcodec" },
+]
+gamepad = [
+    { name = "hidapi" },
+    { name = "pygame" },
+]
+intelrealsense = [
+    { name = "pyrealsense2" },
+]
 smolvla = [
     { name = "accelerate" },
     { name = "num2words" },
@@ -611,6 +679,23 @@ training = [
     { name = "pyarrow" },
     { name = "torchcodec" },
     { name = "wandb" },
+]
+
+[[package]]
+name = "lerobot-robot-a3"
+version = "0.1.0"
+source = { editable = "plugins/lerobot_robot_a3" }
+dependencies = [
+    { name = "a3-outcome-stack" },
+    { name = "el-a3-sdk", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "lerobot", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "a3-outcome-stack", editable = "." },
+    { name = "el-a3-sdk", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", git = "https://github.com/RobStride/EDULITE_A3.git?subdirectory=el_a3_sdk&rev=ea7231f784ebb37e4c4120f7be8e3670514dc9ee" },
+    { name = "lerobot", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", git = "https://github.com/huggingface/lerobot.git?rev=30da8e687a6dfc617fcd94afc367ac7071c376ce" },
 ]
 
 [[package]]
@@ -884,6 +969,15 @@ wheels = [
 ]
 
 [[package]]
+name = "orderly-set"
+version = "5.5.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4a/88/39c83c35d5e97cc203e9e77a4f93bf87ec89cf6a22ac4818fdcc65d66584/orderly_set-5.5.0.tar.gz", hash = "sha256:e87185c8e4d8afa64e7f8160ee2c542a475b738bc891dc3f58102e654125e6ce", size = 27414, upload-time = "2025-07-10T20:10:55.885Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/12/27/fb8d7338b4d551900fa3e580acbe7a0cf655d940e164cb5c00ec31961094/orderly_set-5.5.0-py3-none-any.whl", hash = "sha256:46f0b801948e98f427b412fcabb831677194c05c3b699b80de260374baa0b1e7", size = 13068, upload-time = "2025-07-10T20:10:54.377Z" },
+]
+
+[[package]]
 name = "packaging"
 version = "25.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1007,12 +1101,52 @@ wheels = [
 ]
 
 [[package]]
+name = "pygame"
+version = "2.6.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/49/cc/08bba60f00541f62aaa252ce0cfbd60aebd04616c0b9574f755b583e45ae/pygame-2.6.1.tar.gz", hash = "sha256:56fb02ead529cee00d415c3e007f75e0780c655909aaa8e8bf616ee09c9feb1f", size = 14808125, upload-time = "2024-09-29T13:41:34.698Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b9/f2/d31e6ad42d657af07be2ffd779190353f759a07b51232b9e1d724f2cda46/pygame-2.6.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1206125f14cae22c44565c9d333607f1d9f59487b1f1432945dfc809aeaa3e88", size = 13952653, upload-time = "2024-09-29T11:40:01.781Z" },
+]
+
+[[package]]
 name = "pygments"
 version = "2.20.0"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c3/b2/bc9c9196916376152d655522fdcebac55e66de6603a76a02bca1b6414f6c/pygments-2.20.0.tar.gz", hash = "sha256:6757cd03768053ff99f3039c1a36d6c0aa0b263438fcab17520b30a303a82b5f", size = 4955991, upload-time = "2026-03-29T13:29:33.898Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f4/7e/a72dd26f3b0f4f2bf1dd8923c85f7ceb43172af56d63c7383eb62b332364/pygments-2.20.0-py3-none-any.whl", hash = "sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176", size = 1231151, upload-time = "2026-03-29T13:29:30.038Z" },
+]
+
+[[package]]
+name = "pynput"
+version = "1.8.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "evdev", marker = "'linux' in sys_platform" },
+    { name = "python-xlib", marker = "'linux' in sys_platform" },
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/86/c6/e2d415610cfbc78308bee44218a46124aaa3301b1df08814df819b2254a1/pynput-1.8.2.tar.gz", hash = "sha256:f493c87157cd3861b4468f7f896857051762f44ed26f1b641e7cc5840a457087", size = 82818, upload-time = "2026-05-12T19:11:39.464Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6d/98/bbeb760852adb27f166ce1617f0e51aabb15f21b1e60ea703f2aed3c78ac/pynput-1.8.2-py2.py3-none-any.whl", hash = "sha256:8cc38cf13a6ab2749cb375678be8a0fd705d7ce49c8001ff5db4007a723bbef1", size = 92028, upload-time = "2026-05-12T19:11:37.89Z" },
+]
+
+[[package]]
+name = "pyrealsense2"
+version = "2.56.5.9235"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fc/20/a46e60a496a17f1cf0cbdffb45e66dc015756e4dbce83580fd569e53e178/pyrealsense2-2.56.5.9235-cp312-cp312-manylinux1_x86_64.whl", hash = "sha256:ba2c22981111adbefb169c39e023af4352a2409dfbff59f02c2404c68b82064b", size = 11062766, upload-time = "2025-07-28T14:59:26.551Z" },
+]
+
+[[package]]
+name = "pyserial"
+version = "3.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/7d/ae3f0a63f41e4d2f6cb66a5b57197850f919f59e558159a4dd3a818f5082/pyserial-3.5.tar.gz", hash = "sha256:3c77e014170dfffbd816e6ffc205e9842efb10be9f58ec16d3e8675b4925cddb", size = 159125, upload-time = "2020-11-23T03:59:15.045Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/bc/587a445451b253b285629263eb51c2d8e9bcea4fc97826266d186f96f558/pyserial-3.5-py2.py3-none-any.whl", hash = "sha256:c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0", size = 90585, upload-time = "2020-11-23T03:59:13.41Z" },
 ]
 
 [[package]]
@@ -1041,6 +1175,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/66/c0/0c8b6ad9f17a802ee498c46e004a0eb49bc148f2fd230864601a86dcf6db/python-dateutil-2.9.0.post0.tar.gz", hash = "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3", size = 342432, upload-time = "2024-03-01T18:36:20.211Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ec/57/56b9bcc3c9c6a792fcbaf139543cee77261f3651ca9da0c93f5c1221264b/python_dateutil-2.9.0.post0-py2.py3-none-any.whl", hash = "sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427", size = 229892, upload-time = "2024-03-01T18:36:18.57Z" },
+]
+
+[[package]]
+name = "python-xlib"
+version = "0.33"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/86/f5/8c0653e5bb54e0cbdfe27bf32d41f27bc4e12faa8742778c17f2a71be2c0/python-xlib-0.33.tar.gz", hash = "sha256:55af7906a2c75ce6cb280a584776080602444f75815a7aff4d287bb2d7018b32", size = 269068, upload-time = "2022-12-25T18:53:00.824Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fc/b8/ff33610932e0ee81ae7f1269c890f697d56ff74b9f5b2ee5d9b7fa2c5355/python_xlib-0.33-py2.py3-none-any.whl", hash = "sha256:c3534038d42e0df2f1392a1b30a15a4ff5fdc2b86cfa94f072bf11b10a164398", size = 182185, upload-time = "2022-12-25T18:52:58.662Z" },
 ]
 
 [[package]]
@@ -1097,6 +1243,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ac/c3/e2a2b89f2d3e2179abd6d00ebd70bff6273f37fb3e0cc209f48b39d00cbf/requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed", size = 142856, upload-time = "2026-05-14T19:25:27.735Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
+]
+
+[[package]]
+name = "rerun-sdk"
+version = "0.33.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "attrs" },
+    { name = "numpy" },
+    { name = "pillow" },
+    { name = "psutil" },
+    { name = "pyarrow" },
+    { name = "typing-extensions" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/04/28/fd3b832652900fe3415739e7411c8af8af4c44e9e1a9d55d79e37f7f9094/rerun_sdk-0.33.1-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:0f87da7a270614074aca37846350f9e257f65081345474748f578c7da64fdeba", size = 139565470, upload-time = "2026-06-22T09:04:34.941Z" },
 ]
 
 [[package]]

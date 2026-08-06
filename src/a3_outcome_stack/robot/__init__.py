@@ -3,7 +3,6 @@
 from .backend import RobotBackend, SafeRobot
 from .clock import ManualClock, MonotonicClock
 from .mock import MockBackend
-from .replay import ReplayBackend
 from .safety import SafetyState, StopReason
 from .types import ActionEnvelope, ActionReceipt, Observation
 
@@ -14,7 +13,6 @@ __all__ = [
     "MockBackend",
     "MonotonicClock",
     "Observation",
-    "ReplayBackend",
     "RobotBackend",
     "SafeRobot",
     "SafetyState",

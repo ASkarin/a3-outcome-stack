@@ -14,12 +14,8 @@ def test_canonical_namespace_has_expected_version() -> None:
 
 
 def test_only_canonical_package_and_cli_are_exposed() -> None:
-    pyproject = tomllib.loads(
-        (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    )
-    assert pyproject["project"]["scripts"] == {
-        "a3-outcome-stack": "a3_outcome_stack.ops.cli:main"
-    }
+    pyproject = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    assert pyproject["project"]["scripts"] == {"a3-outcome-stack": "a3_outcome_stack.ops.cli:main"}
     package_names = {
         path.name
         for path in (PROJECT_ROOT / "src").iterdir()
@@ -29,9 +25,7 @@ def test_only_canonical_package_and_cli_are_exposed() -> None:
 
 
 def test_project_metadata_uses_only_canonical_identity() -> None:
-    project = json.loads(
-        (PROJECT_ROOT / "configs" / "project.json").read_text(encoding="utf-8")
-    )
+    project = json.loads((PROJECT_ROOT / "configs" / "project.json").read_text(encoding="utf-8"))
     assert project["project_id"] == "a3-outcome-stack"
     assert project["display_name"] == "A3 OutcomeStack"
     assert "legacy_project_ids" not in project

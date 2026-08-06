@@ -5,8 +5,6 @@ export DEBIAN_FRONTEND=noninteractive
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 collab_group=a3-collab
-operator_group=a3-operator
-hardware_group=a3-hardware
 project_root=/opt/a3-outcome-stack
 state_root=/var/lib/a3-outcome-stack
 log_root=/var/log/a3-outcome-stack
@@ -99,23 +97,15 @@ install_base() {
         acl build-essential ca-certificates can-utils cmake curl evtest ffmpeg git \
         jq joystick ninja-build openssl pciutils pkg-config rsync ufw usbutils v4l-utils
     groupadd --force "${collab_group}"
-    groupadd --force "${operator_group}"
-    groupadd --force "${hardware_group}"
-    usermod --append --groups "${collab_group},${operator_group}" "${administrator}"
+    usermod --append --groups "${collab_group}" "${administrator}"
     install -d -m 0755 -o root -g root "${project_root}"
     install -d -m 2750 -o root -g "${collab_group}" \
         "${project_root}/releases" "${log_root}"
     install -d -m 0750 -o root -g root "${config_root}" "${state_root}/admin"
-    install -d -m 2750 -o root -g "${hardware_group}" \
-        "${state_root}/permits" "${state_root}/sessions"
-    install -m 0644 "${script_dir}/a3-local-control.service" \
-        /etc/systemd/system/a3-local-control.service
     install -m 0755 "${script_dir}/security-rollback.sh" \
         /usr/local/sbin/a3-local-security-rollback
     install -m 0755 "${script_dir}/deploy-release.sh" \
         /usr/local/sbin/a3-local-deploy-release
-    systemctl daemon-reload
-    systemctl disable a3-local-control.service >/dev/null 2>&1 || true
     if [[ "$(uv --version 2>/dev/null || true)" != "uv 0.11.32"* ]]; then
         local temporary
         temporary=$(mktemp -d)

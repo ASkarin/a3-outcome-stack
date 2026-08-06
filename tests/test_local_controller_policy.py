@@ -13,37 +13,38 @@ def test_local_controller_dependency_set_is_pinned_and_device_scoped():
     local_extra = "\n".join(pyproject["project"]["optional-dependencies"]["local-controller"])
     assert "el_a3_sdk @ git+https://github.com/RobStride/EDULITE_A3.git@" in local_extra
     assert "#subdirectory=el_a3_sdk" in local_extra
-    assert "lerobot[smolvla]" in local_extra
-    assert "core_scripts" not in local_extra
+    assert "lerobot[core-scripts,gamepad,intelrealsense,smolvla]" in local_extra
     assert "torch==2.11.0+cu128" in local_extra
     assert "torchvision==0.26.0+cu128" in local_extra
-    assert "pyrealsense2" not in local_extra
     assert "pyserial" not in local_extra
 
 
-def test_base_local_service_is_mock_only_and_has_no_network_listener():
-    unit = (LOCAL / "a3-local-control.service").read_text(encoding="utf-8")
-    assert "robot control serve-mock" in unit
-    assert "RestrictAddressFamilies=AF_UNIX" in unit
-    assert "PrivateDevices=yes" in unit
-    assert "DynamicUser=yes" in unit
-    assert "SupplementaryGroups=a3-collab a3-operator a3-hardware" in unit
-    assert "Restart=no" in unit
-    assert "AF_INET" not in unit
-    assert "AF_CAN" not in unit
+def test_socket_control_service_and_runtime_account_are_absent():
+    assert not (LOCAL / "a3-local-control.service").exists()
+    assert not (LOCAL / "local-control.env.example").exists()
+    source = "\n".join(
+        path.read_text(encoding="utf-8") for path in LOCAL.iterdir() if path.is_file()
+    )
+    assert "robot control serve-mock" not in source
+    assert "a3-runtime" not in source
 
 
-def test_bootstrap_creates_roles_but_no_placeholder_human_account():
+def test_bootstrap_creates_only_the_collaborator_group_and_no_placeholder_account():
     bootstrap = (LOCAL / "bootstrap-host.sh").read_text(encoding="utf-8")
     manager = (LOCAL / "manage-collaborator.sh").read_text(encoding="utf-8")
     assert "groupadd --force" in bootstrap
     assert "a3-collab" in bootstrap
-    assert "a3-operator" in bootstrap
-    assert "a3-hardware" in bootstrap
+    assert "a3-operator" not in bootstrap
+    assert "a3-hardware" not in bootstrap
+    assert 'usermod --append --groups "${collab_group}" "${administrator}"' in bootstrap
+    assert '"${state_root}/permits"' not in bootstrap
+    assert "a3-local-control.service" not in bootstrap
     assert "useradd" not in bootstrap
     assert "adduser" not in bootstrap
     assert "A3_TAILNET_GRANT_CONFIRMED" in manager
     assert "A3_TAILNET_GRANT_REVOKED" in manager
+    assert "--operator" not in manager
+    assert 'usermod --shell /bin/bash --groups "${collab_group}"' in manager
     assert 'usermod --groups "" --lock' in manager
     assert "authorized_keys" in manager
     assert "account already exists" in manager
@@ -62,7 +63,8 @@ def test_deployment_uses_clean_commit_scoped_immutable_environments():
     assert 'archive --format=tar "${commit}"' in deploy
     assert "rsync" not in deploy
     assert "uv sync" in deploy
-    assert "--frozen --extra local-controller --no-dev" in deploy
+    assert deploy.count("--all-packages") == 3
+    assert "--extra local-controller --no-dev" in deploy
     assert deploy.count("--no-editable") == 2
     assert 'uv sync --project "${destination}"' in deploy
     assert ".a3-release-complete" in deploy
@@ -87,6 +89,10 @@ def test_host_doctor_requires_exact_planned_runtime_versions():
     assert "ufw status verbose" in doctor
     assert "Default: deny (incoming), allow (outgoing)" in doctor
     assert "on tailscale0 to any port [0-9]+ proto tcp" in doctor
+    assert '"a3-local-environment-v2"' in doctor
+    assert "raw_hardware_authorized" in doctor
+    assert "enumerated_device_access" in doctor
+    assert "raw_hardware_access_granted_to_humans" not in doctor
 
 
 def test_host_security_is_public_key_only_and_has_timed_rollback():
@@ -97,7 +103,7 @@ def test_host_security_is_public_key_only_and_has_timed_rollback():
     assert "KbdInteractiveAuthentication no" in sshd
     assert "AuthenticationMethods publickey" in sshd
     assert "current_ssh_uses_tailscale" in bootstrap
-    assert 'local connection=${SSH_CONNECTION:-}' in bootstrap
+    assert "local connection=${SSH_CONNECTION:-}" in bootstrap
     assert "preserve SSH_CONNECTION through sudo" in bootstrap
     assert "| grep -q" not in bootstrap
     assert "{print $2; exit}" not in bootstrap
