@@ -19,6 +19,9 @@ def test_project_doctor_accepts_non_main_git_checkout():
     assert report["dependencies"]["uv_lock"]["el_a3_sdk"]["commit"] == (
         "ea7231f784ebb37e4c4120f7be8e3670514dc9ee"
     )
+    assert report["dependencies"]["uv_lock"]["lerobot_robot_a3"]["commit"] == (
+        "bf188864ef3922f8caded5cc19cc43b8061c4b22"
+    )
 
 
 def test_source_identity_accepts_git_archive_release(tmp_path: Path):

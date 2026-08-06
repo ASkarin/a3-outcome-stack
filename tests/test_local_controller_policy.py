@@ -11,8 +11,11 @@ LOCAL = ROOT / "infra" / "local-controller"
 def test_local_controller_dependency_set_is_pinned_and_device_scoped():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     local_extra = "\n".join(pyproject["project"]["optional-dependencies"]["local-controller"])
-    assert "el_a3_sdk @ git+https://github.com/RobStride/EDULITE_A3.git@" in local_extra
-    assert "#subdirectory=el_a3_sdk" in local_extra
+    assert (
+        "lerobot_robot_a3 @ git+ssh://git@github.com/ASkarin/"
+        "lerobot-robot-edulite-a3.git@bf188864ef3922f8caded5cc19cc43b8061c4b22" in local_extra
+    )
+    assert "el_a3_sdk @" not in local_extra
     assert "lerobot[core-scripts,gamepad,intelrealsense,smolvla]" in local_extra
     assert "torch==2.11.0+cu128" in local_extra
     assert "torchvision==0.26.0+cu128" in local_extra
@@ -62,11 +65,11 @@ def test_deployment_uses_clean_commit_scoped_immutable_environments():
     assert "status --porcelain --untracked-files=all" in deploy
     assert 'archive --format=tar "${commit}"' in deploy
     assert "rsync" not in deploy
-    assert "uv sync" in deploy
+    assert "private_uv sync" in deploy
     assert deploy.count("--all-packages") == 3
     assert "--extra local-controller --no-dev" in deploy
     assert deploy.count("--no-editable") == 2
-    assert 'uv sync --project "${destination}"' in deploy
+    assert 'private_uv sync --project "${destination}"' in deploy
     assert ".a3-release-complete" in deploy
     assert "release is incomplete" in deploy
     assert "A3_PYPI_MIRROR must be an HTTPS package index" in deploy
@@ -76,6 +79,12 @@ def test_deployment_uses_clean_commit_scoped_immutable_environments():
     assert "--no-emit-package torchvision" in deploy
     assert "UV_DEFAULT_INDEX" in deploy
     assert "UV_HTTP_TIMEOUT=600" in deploy
+    assert "install requires a forwarded SSH agent" in deploy
+    assert '[[ -S "${SSH_AUTH_SOCK}" ]]' in deploy
+    assert "ssh-add -l" in deploy
+    assert "GIT_LFS_SKIP_SMUDGE=1" in deploy
+    assert "unset SSH_AUTH_SOCK" in deploy
+    assert "--no-emit-package lerobot-robot-a3" in deploy
     assert "release already exists; releases are immutable" in deploy
     assert "chown -R root:" in deploy
     assert "mv -Tf" in deploy

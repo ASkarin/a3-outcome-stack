@@ -11,17 +11,17 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from .canonical import load_json, sha256_file
+from .canonical import load_json, sha256_text_file
 from .errors import IntegrityError, ValidationError
 
 SDK_COMMIT = "ea7231f784ebb37e4c4120f7be8e3670514dc9ee"
 LEROBOT_COMMIT = "30da8e687a6dfc617fcd94afc367ac7071c376ce"
+ADAPTER_COMMIT = "bf188864ef3922f8caded5cc19cc43b8061c4b22"
 COMMIT_PATTERN = re.compile(r"[0-9a-f]{40}")
 
 REQUIRED_DIRECTORIES = (
     "src/a3_outcome_stack/ops",
     "src/a3_outcome_stack/robot",
-    "plugins/lerobot_robot_a3/src/lerobot_robot_a3",
     "configs/robot",
     "docs/preregistration",
     "tests",
@@ -130,7 +130,7 @@ def doctor_project(root: str | Path) -> dict[str, Any]:
     snapshot = root_path / prereg.get("path", "")
     if not snapshot.is_file():
         raise ValidationError(f"missing preregistration snapshot: {snapshot}")
-    actual_prereg_hash = sha256_file(snapshot)
+    actual_prereg_hash = sha256_text_file(snapshot)
     if actual_prereg_hash != prereg.get("sha256"):
         raise IntegrityError(
             f"preregistration snapshot mismatch: expected {prereg.get('sha256')}, "
@@ -140,6 +140,7 @@ def doctor_project(root: str | Path) -> dict[str, Any]:
     source = _source_identity(root_path)
     sdk_lock = _locked_package(root_path, "el-a3-sdk", SDK_COMMIT)
     lerobot_lock = _locked_package(root_path, "lerobot", LEROBOT_COMMIT)
+    adapter_lock = _locked_package(root_path, "lerobot-robot-a3", ADAPTER_COMMIT)
     return {
         "status": "ok",
         "project_id": project["project_id"],
@@ -155,6 +156,7 @@ def doctor_project(root: str | Path) -> dict[str, Any]:
             "uv_lock": {
                 "el_a3_sdk": sdk_lock,
                 "lerobot": lerobot_lock,
+                "lerobot_robot_a3": adapter_lock,
             },
             "installed": {
                 "el_a3_sdk": _installed_package("el-a3-sdk"),

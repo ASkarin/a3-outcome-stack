@@ -43,6 +43,17 @@ def test_robot_doctor_reports_local_safety_and_permission_boundary(tmp_path: Pat
     assert report["roles"]["collaborator"]["raw_hardware_authorized"] is False
     assert report["roles"]["collaborator"]["sudo_authorized"] is False
     assert report["execution_role"] in {"administrator", "collaborator", "unassigned"}
+    assert set(report["dependencies"]) >= {
+        "lerobot",
+        "lerobot_robot_a3",
+        "el_a3_sdk",
+    }
+    for package in ("lerobot", "lerobot_robot_a3", "el_a3_sdk"):
+        assert set(report["dependencies"][package]) == {
+            "installed",
+            "version",
+            "vcs_commit",
+        }
     for role in ("administrator", "collaborator"):
         access = report["roles"][role]["enumerated_device_access"]
         assert set(access) == {"can", "d435", "ar0234", "xbox"}

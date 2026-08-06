@@ -60,6 +60,62 @@ jobs:
       - name: Validate container policy
         run: uv run --no-sync pytest tests/test_container_policy.py
 
+  local-controller-integration:
+    name: local-controller-private-adapter
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: ubuntu-24.04
+    env:
+      GIT_LFS_SKIP_SMUDGE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Configure ephemeral read-only SSH access
+        shell: bash
+        env:
+          LEROBOT_A3_READ_KEY: ${{ secrets.LEROBOT_A3_READ_KEY }}
+        run: |
+          test -n "${LEROBOT_A3_READ_KEY}"
+          install -d -m 0700 "${HOME}/.ssh"
+          printf '%s\n' \
+            'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' \
+            >"${HOME}/.ssh/known_hosts"
+          chmod 0600 "${HOME}/.ssh/known_hosts"
+          ssh-keygen -lf "${HOME}/.ssh/known_hosts" -E sha256 | \
+            grep -F 'SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU'
+          eval "$(ssh-agent -s)"
+          ssh-add - <<<"${LEROBOT_A3_READ_KEY}"
+          printf 'SSH_AUTH_SOCK=%s\nSSH_AGENT_PID=%s\n' \
+            "${SSH_AUTH_SOCK}" "${SSH_AGENT_PID}" >>"${GITHUB_ENV}"
+          printf 'GIT_SSH_COMMAND=ssh -o StrictHostKeyChecking=yes -o UserKnownHostsFile=%s/.ssh/known_hosts\n' \
+            "${HOME}" >>"${GITHUB_ENV}"
+      - name: Reclaim runner disk for local-controller dependencies
+        run: infra/container/ci/reclaim_runner_space.sh
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: ${{ env.UV_VERSION }}
+      - name: Install locked local controller
+        run: uv sync --frozen --extra local-controller --group dev
+      - name: Verify private adapter identity and project diagnostics
+        shell: bash
+        run: |
+          uv run --no-sync a3-outcome-stack doctor --root .
+          uv run --no-sync a3-outcome-stack robot doctor --root .
+          uv run --no-sync python - <<'PY'
+          import importlib.metadata
+          import json
+
+          expected = "bf188864ef3922f8caded5cc19cc43b8061c4b22"
+          distribution = importlib.metadata.distribution("lerobot_robot_a3")
+          direct_url = json.loads(distribution.read_text("direct_url.json"))
+          assert distribution.version == "0.1.0a1"
+          assert direct_url["vcs_info"]["commit_id"] == expected
+          assert importlib.metadata.version("lerobot") == "0.6.0"
+          assert importlib.metadata.version("el-a3-sdk") == "1.0.0"
+          PY
+          uv run --no-sync pytest tests/test_local_controller_policy.py tests/test_robot_doctor.py
+      - name: Stop ephemeral SSH agent
+        if: ${{ always() }}
+        run: ssh-agent -k
+
   container:
     name: container-build
     runs-on: ubuntu-24.04

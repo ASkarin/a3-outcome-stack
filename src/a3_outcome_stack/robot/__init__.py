@@ -1,20 +1,5 @@
-"""Safe, backend-neutral robot interface for the EduLite A3 project."""
+"""Read-only project diagnostics for the local robot host.
 
-from .backend import RobotBackend, SafeRobot
-from .clock import ManualClock, MonotonicClock
-from .mock import MockBackend
-from .safety import SafetyState, StopReason
-from .types import ActionEnvelope, ActionReceipt, Observation
-
-__all__ = [
-    "ActionEnvelope",
-    "ActionReceipt",
-    "ManualClock",
-    "MockBackend",
-    "MonotonicClock",
-    "Observation",
-    "RobotBackend",
-    "SafeRobot",
-    "SafetyState",
-    "StopReason",
-]
+The actuator-facing implementation lives in the private ``lerobot_robot_a3``
+dependency and is deliberately not duplicated here.
+"""

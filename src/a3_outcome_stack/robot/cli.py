@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import importlib.util
+import json
 import os
 import shutil
 import socket
@@ -119,11 +120,23 @@ def _not_checked_targets() -> dict[str, Any]:
     }
 
 
-def _installed_version(distribution_name: str) -> str | None:
+def _installed_distribution(distribution_name: str) -> dict[str, Any]:
     try:
-        return importlib.metadata.version(distribution_name)
+        distribution = importlib.metadata.distribution(distribution_name)
     except importlib.metadata.PackageNotFoundError:
-        return None
+        return {"installed": False, "version": None, "vcs_commit": None}
+    vcs_commit = None
+    direct_url = distribution.read_text("direct_url.json")
+    if direct_url:
+        try:
+            vcs_commit = json.loads(direct_url).get("vcs_info", {}).get("commit_id")
+        except json.JSONDecodeError:
+            pass
+    return {
+        "installed": True,
+        "version": distribution.version,
+        "vcs_commit": vcs_commit,
+    }
 
 
 def _robot_doctor(root: str) -> dict[str, Any]:
@@ -143,9 +156,9 @@ def _robot_doctor(root: str) -> dict[str, Any]:
     return {
         "status": "ok",
         "dependencies": {
-            "lerobot": _installed_version("lerobot"),
-            "lerobot_robot_a3": _installed_version("lerobot_robot_a3"),
-            "el_a3_sdk": _installed_version("el-a3-sdk"),
+            "lerobot": _installed_distribution("lerobot"),
+            "lerobot_robot_a3": _installed_distribution("lerobot_robot_a3"),
+            "el_a3_sdk": _installed_distribution("el-a3-sdk"),
             "pinocchio_importable": importlib.util.find_spec("pinocchio") is not None,
             "ros2_cli": shutil.which("ros2") is not None,
         },

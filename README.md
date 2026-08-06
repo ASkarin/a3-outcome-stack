@@ -22,17 +22,19 @@ calibration and safety files, preregistration, and final dataset/model publicati
 boundaries. Ordinary JSON, frames, permits, checkpoint pointers, and nested result
 documents are not self-hashed.
 
-## A3 LeRobot plugin
+## A3 LeRobot adapter
 
-`plugins/lerobot_robot_a3/` is an independent distribution named
-`lerobot_robot_a3`, which LeRobot auto-discovers by its standard package prefix. It
+The actuator-facing adapter is no longer duplicated in this repository. The
+`local-controller` extra pins the private, community-maintained third-party repository
+`ASkarin/lerobot-robot-edulite-a3` at a full commit. Its distribution remains
+`lerobot_robot_a3`, which LeRobot auto-discovers by the standard package prefix. It
 registers `A3RobotConfig` as robot type `a3` and exposes:
 
 - observation: `L1.pos` through `L7.pos`, `L1.vel` through `L7.vel`, plus configured
   LeRobot cameras;
 - action: `L1.pos` through `L7.pos`;
 - direct in-process calls to the commit-pinned official `ELA3Interface`;
-- finite-value, joint-limit, fault, timing, and watchdog checks through `SafeRobot`.
+- finite-value, joint-limit, fault, timing, and watchdog checks inside the adapter.
 
 The unique highest-privilege administrator runs the plugin directly from an immutable
 release. The default `read_only` mode connects without enabling the arm. Calibration
@@ -43,10 +45,16 @@ There is no runtime account, Unix socket,
 operator permit, or mock control service. Collaborators remain unable to use raw
 devices, sudo, or modify an immutable release.
 
-Camera selection follows LeRobot: D435 uses the RealSense camera implementation;
-AR0234 uses OpenCV only after the complete module enumerates as UVC. Xbox mapping is
-deferred until its real axes are measured and then belongs in a LeRobot
-Teleoperator/processor, not in the robot driver.
+OutcomeStack continues to own camera and controller selection, data collection,
+training, evaluation, host permissions, immutable releases, and real validation
+evidence. D435 uses LeRobot's RealSense implementation; AR0234 uses OpenCV only after
+the complete module enumerates as UVC. Xbox mapping remains deferred until its real
+axes are measured and then belongs in a separate LeRobot Teleoperator/processor.
+
+The adapter repository remains private until the separately documented physical gate
+passes and the owner explicitly authorizes public visibility. It is installed from a
+full Git commit; no PyPI, Hugging Face package, submodule, committed wheel, or second
+active source copy is used.
 
 ## Commands and verification
 

@@ -22,6 +22,13 @@ def test_only_canonical_package_and_cli_are_exposed() -> None:
         if path.is_dir() and (path / "__init__.py").is_file()
     }
     assert package_names == {"a3_outcome_stack"}
+    plugin_root = PROJECT_ROOT / "plugins"
+    assert not any(plugin_root.rglob("*.py"))
+    assert not any(plugin_root.rglob("pyproject.toml"))
+    robot_modules = {
+        path.name for path in (PROJECT_ROOT / "src/a3_outcome_stack/robot").glob("*.py")
+    }
+    assert robot_modules == {"__init__.py", "cli.py"}
 
 
 def test_project_metadata_uses_only_canonical_identity() -> None:

@@ -1,4 +1,4 @@
-"""JSON loading and SHA-256 for explicit release and safety boundaries."""
+"""JSON loading and the canonical preregistration digest."""
 
 from __future__ import annotations
 
@@ -12,12 +12,15 @@ from .errors import ValidationError
 HASH_PREFIX = "sha256:"
 
 
-def sha256_file(path: str | Path, chunk_size: int = 8 * 1024 * 1024) -> str:
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as handle:
-        while chunk := handle.read(chunk_size):
-            digest.update(chunk)
-    return HASH_PREFIX + digest.hexdigest()
+def sha256_text_file(path: str | Path) -> str:
+    """Hash UTF-8 text after normalizing checkout-specific line endings."""
+
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ValidationError(f"cannot read text {path}: {exc}") from exc
+    canonical = text.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8")
+    return HASH_PREFIX + hashlib.sha256(canonical).hexdigest()
 
 
 def load_json(path: str | Path) -> Any:

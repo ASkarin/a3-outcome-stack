@@ -34,14 +34,18 @@ sudo bash infra/local-controller/bootstrap-host.sh check
 After review, deploy a clean committed checkout as an immutable release:
 
 ```bash
-sudo /usr/local/sbin/a3-local-deploy-release install <clean-source-checkout>
+sudo --preserve-env=SSH_AUTH_SOCK \
+  /usr/local/sbin/a3-local-deploy-release install <clean-source-checkout>
 ```
 
-The release sync installs all workspace packages, including the auto-discoverable
-`lerobot_robot_a3` distribution. The administrator develops in a personal clone, but
-real control, data collection, and policy execution use the immutable release. Run
-Python as the administrator, not root; use sudo only for drivers, udev/ACL, SocketCAN,
-and deployment administration.
+The release sync installs the auto-discoverable `lerobot_robot_a3` distribution from
+its private repository at the full commit in `uv.lock`. Before invoking sudo, the
+administrator must use a temporary forwarded SSH agent that can read that repository;
+the deployment fails closed when `SSH_AUTH_SOCK` is absent or unusable. No deploy key
+is stored on `a3-local`. The administrator develops in a personal clone, but real
+control, data collection, and policy execution use the immutable release. Run Python
+as the administrator, not root; use sudo only for drivers, udev/ACL, SocketCAN, and
+deployment administration.
 
 `A3_PYPI_MIRROR` may point to an HTTPS package index when the locked registry CDN is
 unusable. Git dependencies and pinned PyTorch wheels remain on their locked sources.

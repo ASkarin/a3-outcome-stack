@@ -6,6 +6,7 @@ deployment_root=/opt/a3-outcome-stack
 release_root=${deployment_root}/releases
 collab_group=a3-collab
 release_marker=.a3-release-complete
+forwarded_ssh_auth_sock=
 
 fail() {
     echo "error: $*" >&2
@@ -19,6 +20,23 @@ git_source() {
     git -c "safe.directory=${source_root}" -C "${source_root}" "$@"
 }
 
+capture_forwarded_agent() {
+    [[ -n "${SSH_AUTH_SOCK:-}" ]] || \
+        fail "install requires a forwarded SSH agent in SSH_AUTH_SOCK"
+    [[ -S "${SSH_AUTH_SOCK}" ]] || \
+        fail "SSH_AUTH_SOCK is not a usable agent socket"
+    command -v ssh-add >/dev/null 2>&1 || fail "ssh-add is required to validate the agent"
+    SSH_AUTH_SOCK="${SSH_AUTH_SOCK}" ssh-add -l >/dev/null 2>&1 || \
+        fail "forwarded SSH agent has no usable private-repository identity"
+    forwarded_ssh_auth_sock=${SSH_AUTH_SOCK}
+    unset SSH_AUTH_SOCK
+}
+
+private_uv() {
+    [[ -n "${forwarded_ssh_auth_sock}" ]] || fail "private dependency agent is unavailable"
+    SSH_AUTH_SOCK="${forwarded_ssh_auth_sock}" GIT_LFS_SKIP_SMUDGE=1 command uv "$@"
+}
+
 preinstall_registry_from_mirror() {
     local project=$1
     local mirror=${A3_PYPI_MIRROR:-}
@@ -27,9 +45,10 @@ preinstall_registry_from_mirror() {
         fail "A3_PYPI_MIRROR must be an HTTPS package index"
     local requirements=${project}/.a3-mirror-requirements.txt
     UV_PYTHON_INSTALL_DIR=/opt/a3/python \
-        uv export --project "${project}" --all-packages --frozen \
+        private_uv export --project "${project}" --all-packages --frozen \
             --extra local-controller --no-dev \
-        --no-emit-project --no-emit-package el-a3-sdk --no-emit-package lerobot \
+        --no-emit-project --no-emit-package lerobot-robot-a3 \
+        --no-emit-package el-a3-sdk --no-emit-package lerobot \
         --no-emit-package torch --no-emit-package torchvision \
         --format requirements-txt --output-file "${requirements}"
     UV_PYTHON_INSTALL_DIR=/opt/a3/python \
@@ -65,6 +84,7 @@ case "${action}" in
         git_source diff --cached --quiet || fail "source index is dirty"
         [[ -z "$(git_source status --porcelain --untracked-files=all)" ]] || \
             fail "source checkout contains untracked files"
+        capture_forwarded_agent
         commit=$(git_source rev-parse HEAD)
         [[ "${commit}" =~ ^[0-9a-f]{40}$ ]] || fail "source commit is invalid"
         destination=${release_root}/${commit}
@@ -77,11 +97,11 @@ case "${action}" in
             tar -xf - -C "${temporary}"
         preinstall_registry_from_mirror "${temporary}"
         UV_PYTHON_INSTALL_DIR=/opt/a3/python \
-            uv sync --project "${temporary}" --all-packages --frozen \
+            private_uv sync --project "${temporary}" --all-packages --frozen \
             --extra local-controller --no-dev --no-editable
         mv -- "${temporary}" "${destination}"
         UV_PYTHON_INSTALL_DIR=/opt/a3/python \
-            uv sync --project "${destination}" --all-packages --frozen \
+            private_uv sync --project "${destination}" --all-packages --frozen \
             --extra local-controller --no-dev --no-editable
         printf '%s\n' "${commit}" >"${destination}/${release_marker}"
         chown -R root:"${collab_group}" "${destination}"
