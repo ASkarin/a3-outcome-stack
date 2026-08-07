@@ -83,6 +83,16 @@ def test_deployment_uses_clean_commit_scoped_immutable_environments():
     assert '[[ -S "${SSH_AUTH_SOCK}" ]]' in deploy
     assert "ssh-add -l" in deploy
     assert "GIT_LFS_SKIP_SMUDGE=1" in deploy
+    assert "BatchMode=yes" in deploy
+    assert "StrictHostKeyChecking=yes" in deploy
+    assert "HostKeyAlgorithms=ssh-ed25519" in deploy
+    assert "UserKnownHostsFile=${private_git_known_hosts}" in deploy
+    assert "GlobalKnownHostsFile=/dev/null" in deploy
+    assert "IdentityFile=none" in deploy
+    assert "mktemp /run/a3-github-known-hosts.XXXXXX" in deploy
+    assert "pinned GitHub host key fingerprint verification failed" in deploy
+    assert "StrictHostKeyChecking=no" not in deploy
+    assert "accept-new" not in deploy
     assert "unset SSH_AUTH_SOCK" in deploy
     assert "--no-emit-package lerobot-robot-a3" in deploy
     assert "release already exists; releases are immutable" in deploy
@@ -140,4 +150,6 @@ def test_local_controller_templates_contain_no_literal_network_address():
     assert not re.search(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", text)
     assert "PRIVATE KEY" not in text
     assert "ssh-rsa " not in text
-    assert "ssh-ed25519 " not in text
+    assert text.count("github.com ssh-ed25519 ") == 1
+    assert "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" in text
+    assert text.count("SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU") == 1
