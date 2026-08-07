@@ -6,8 +6,6 @@
     "id": "PR-20260722-01",
     "path": "docs/preregistration/PR-20260722-01.md",
     "sha256": "sha256:fa5f70343c520681e10ceb8801869deeaddc4664c7383891dc31eea2d5f9e883"
-  },
-  "experiment_registry": "experiments/registry.csv",
-  "result_index": "results/index.jsonl"
+  }
 }
 

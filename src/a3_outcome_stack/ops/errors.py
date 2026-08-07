@@ -15,4 +15,3 @@ class IntegrityError(OpsError):
 
 class StateConflict(OpsError):
     exit_code = 4
-

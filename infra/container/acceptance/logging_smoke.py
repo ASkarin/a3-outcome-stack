@@ -61,9 +61,7 @@ def main() -> int:
     payload = {
         "schema_version": 1,
         "status": "pass",
-        "tensorboard_files": [
-            str(path.relative_to(run_dir)) for path in event_files
-        ],
+        "tensorboard_files": [str(path.relative_to(run_dir)) for path in event_files],
         "wandb_files": [str(path.relative_to(run_dir)) for path in wandb_files],
     }
     print(json.dumps(payload, indent=2, sort_keys=True))

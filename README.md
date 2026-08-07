@@ -1,76 +1,76 @@
 # A3 OutcomeStack
 
-A3 OutcomeStack is a reproducible real-robot learning stack for EduLite A3, spanning data capture, ACT/VLA training, deployment, evaluation, and action-outcome prediction. This repository is the implementation and experiment evidence source. Planning, decisions, and the canonical preregistration live in the local control repository; the frozen preregistration snapshot in this repository is byte-identical and hash-bound to every formal experiment.
+A3 OutcomeStack is a reproducible real-robot data, ACT/VLA training, deployment,
+evaluation, and action-outcome stack for EduLite A3. This repository is the code and
+experiment-evidence source. The control repository holds the roadmap, current status,
+decisions, and the canonical preregistration.
 
-The canonical project slug and Python distribution are `a3-outcome-stack`; the Python namespace and CLI are `a3_outcome_stack` and `a3-outcome-stack`. Historical Stage 0/1A commits and evidence remain available through Git, but their former names are not active aliases on the current branch.
+## Conventional lifecycle
 
-## Evidence model
+The project does not maintain a second experiment, dataset, checkpoint, result, or
+resume framework. Use the official LeRobot lifecycle directly:
 
-- `experiments/specs/` contains immutable experiment specifications. `experiments/registry.csv` is generated from specs plus the latest immutable terminal summary for each experiment.
-- `metadata/datasets/` and `metadata/assets/` contain immutable SHA-256 manifests for external data and assets.
-- `runs/` contains checkpoints and logs and is ignored by Git.
-- `results/summaries/` contains immutable per-attempt summaries. `results/index.jsonl` is generated from them.
-- `metadata/freezes/` contains sealed final-evaluation manifests.
-- Raw data, videos, checkpoints, and model weights must not enter Git.
+- `LeRobotDataset` v3 for recording, finalization, reload, and replay;
+- `lerobot-record`, `lerobot-teleoperate`, and `lerobot-replay` for robot workflows;
+- `lerobot-train` for ACT/SmolVLA training and checkpoint resume;
+- Hugging Face revisions plus the promoted cross-host artifact boundary for published
+  datasets and models.
 
-Experiment IDs have the form `EXP-<TASK>-<POLICY>-<SPEC_SHA12>`. An exact process resume keeps its attempt ID, such as `...-A001`; a from-scratch rerun increments the attempt. Any change to code, configuration, seed, or data identity creates a new experiment. Reusing a checkpoint across identities is a `warm_start`, not a resume.
+Historical `experiments/registry.csv`, evidence, preregistration, and Git history stay
+inspectable. SHA-256 remains at dependency/image locks, cross-host artifacts,
+calibration and safety files, preregistration, and final dataset/model publication
+boundaries. Ordinary JSON, frames, permits, checkpoint pointers, and nested result
+documents are not self-hashed.
 
-Dataset versions have the form `<dataset_slug>-vMAJOR.MINOR.PATCH`. Schema or split-rule changes increment major, episode additions/removals or recleaning increment minor, and metadata-only corrections increment patch. The version is always paired with a content SHA-256.
+## A3 LeRobot adapter
 
-## Commands
+The actuator-facing adapter is no longer duplicated in this repository. The
+`local-controller` extra pins the private, community-maintained third-party repository
+`ASkarin/lerobot-robot-edulite-a3` at a full commit. Its distribution remains
+`lerobot_robot_a3`, which LeRobot auto-discovers by the standard package prefix. It
+registers `A3RobotConfig` as robot type `a3` and exposes:
 
-Run without installing into the environment:
+- observation: `L1.pos` through `L7.pos`, `L1.vel` through `L7.vel`, plus configured
+  LeRobot cameras;
+- action: `L1.pos` through `L7.pos`;
+- direct in-process calls to the commit-pinned official `ELA3Interface`;
+- finite-value, joint-limit, fault, timing, and watchdog checks inside the adapter.
 
-```bash
-PYTHONPATH=src python -m a3_outcome_stack.ops doctor --root .
-PYTHONPATH=src python -m a3_outcome_stack.ops experiment register --spec config.json
-PYTHONPATH=src python -m a3_outcome_stack.ops dataset manifest --root DATA --version a3-core-v0.1.0 --episodes episodes.json --output metadata/datasets/a3-core-v0.1.0.json
-PYTHONPATH=src python -m a3_outcome_stack.ops dataset verify --root DATA --manifest metadata/datasets/a3-core-v0.1.0.json
-PYTHONPATH=src python -m a3_outcome_stack.ops asset manifest --root ASSET --asset-id camera-calibration --kind calibration --output metadata/assets/camera-calibration.json
-PYTHONPATH=src python -m a3_outcome_stack.ops checkpoint verify --checkpoint runs/EXP/.../step-000000000100.pt
-PYTHONPATH=src python -m a3_outcome_stack.ops result reindex
-PYTHONPATH=src python -m a3_outcome_stack.ops freeze verify --manifest metadata/freezes/FRZ-....json
-```
+The unique highest-privilege administrator runs the plugin directly from an immutable
+release. The default `read_only` mode connects without enabling the arm. Calibration
+must already be frozen and is never performed interactively. `motion` is an explicit
+mode and additionally requires frozen safety settings, a verified physical emergency
+stop, all five hardware-gate flags, and matching calibration/safety SHA-256 bindings.
+There is no runtime account, Unix socket,
+operator permit, or mock control service. Collaborators remain unable to use raw
+devices, sudo, or modify an immutable release.
 
-An editable or packaged installation exposes the canonical `a3-outcome-stack` command.
+OutcomeStack continues to own camera and controller selection, data collection,
+training, evaluation, host permissions, immutable releases, and real validation
+evidence. D435 uses LeRobot's RealSense implementation; AR0234 uses OpenCV only after
+the complete module enumerates as UVC. Xbox mapping remains deferred until its real
+axes are measured and then belongs in a separate LeRobot Teleoperator/processor.
 
-All JSON is UTF-8 canonicalized before identity hashes are computed. Validation errors exit with code 2, integrity mismatches with 3, and lifecycle conflicts with 4. There is no force-resume path.
+The adapter repository remains private until the separately documented physical gate
+passes and the owner explicitly authorizes public visibility. It is installed from a
+full Git commit; no PyPI, Hugging Face package, submodule, committed wheel, or second
+active source copy is used.
 
-## Stage 1A robot contract
-
-The hardware-neutral A3 interface lives in `src/a3_outcome_stack/robot/`. `SafeRobot` is the only public actuator gateway; deterministic mock and strict replay backends exercise the same observation/action, timing, and latched safety contracts. The official SDK is pinned by `configs/upstream/edulite_a3.lock.json` and is imported only when an SDK backend is explicitly constructed.
-
-Stage 1A is hardware-unverified. The checked-in calibration and safety files contain null, unfrozen hardware values and therefore cannot enable motors. Mock limits and timeouts are synthetic test fixtures and must never be reused for hardware.
-
-```bash
-PYTHONPATH=src python -m a3_outcome_stack.ops robot contract verify
-PYTHONPATH=src python -m a3_outcome_stack.ops robot upstream verify --checkout .cache/upstream/EDULITE_A3
-PYTHONPATH=src python -m a3_outcome_stack.ops robot mock record --output runs/stage1a/mock-001 --steps 3
-PYTHONPATH=src python -m a3_outcome_stack.ops robot trace verify --trace runs/stage1a/mock-001
-PYTHONPATH=src python -m a3_outcome_stack.ops robot replay --trace runs/stage1a/mock-001 --strict
-PYTHONPATH=src python -m a3_outcome_stack.ops robot doctor --root . --upstream-checkout .cache/upstream/EDULITE_A3
-```
-
-## Verification
-
-The supported remote training environment is the project container defined under
-`infra/container/`. Its base seed uses Python 3.12, the repository `uv.lock`, CUDA 12.8
-PyTorch, and a commit-pinned LeRobot installation. Normal logins use the persistent
-shared environment at `/workspace/a3/python-env`; the administrator can install a
-missing package in place with `a3-python install` without rebuilding the container.
-The former shared Conda environment is not a supported entry point.
-
-Each collaborator keeps a separate clone under their persistent home. From a clone,
-run project code with the shared environment:
+## Commands and verification
 
 ```bash
-python --version
-a3-python list
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m pytest -p no:cacheprovider
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m a3_outcome_stack.ops doctor --root .
+a3-outcome-stack doctor --root .
+a3-outcome-stack robot doctor --root .
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
 ```
 
-Python administration, optional base-image construction, deployment inputs, artifact
-promotion, GPU locking, and acceptance checks are documented in
-`infra/container/README.md`. Formal training records the live Python package list and
-uses promoted local model/dataset revisions.
+The top-level doctor accepts either a Git checkout on any branch or a completed
+Git-archive release containing `.a3-release-complete`. SDK identity is established by
+the Git commit in `uv.lock` and installed distribution metadata, not a second list of
+upstream file hashes.
+
+The supported remote training environment is under `infra/container/`; the local
+controller deployment is under `infra/local-controller/`. Raw data, videos,
+checkpoints, and model weights must not enter Git.

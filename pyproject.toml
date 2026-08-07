@@ -10,8 +10,8 @@ requires-python = ">=3.12,<3.13"
 
 [project.optional-dependencies]
 local-controller = [
-    "el_a3_sdk @ git+https://github.com/RobStride/EDULITE_A3.git@ea7231f784ebb37e4c4120f7be8e3670514dc9ee#subdirectory=el_a3_sdk ; sys_platform == 'linux' and platform_machine == 'x86_64'",
-  "lerobot[smolvla] @ git+https://github.com/huggingface/lerobot.git@30da8e687a6dfc617fcd94afc367ac7071c376ce ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "lerobot_robot_a3 @ git+ssh://git@github.com/ASkarin/lerobot-robot-edulite-a3.git@bf188864ef3922f8caded5cc19cc43b8061c4b22 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "lerobot[core-scripts,gamepad,intelrealsense,smolvla] @ git+https://github.com/huggingface/lerobot.git@30da8e687a6dfc617fcd94afc367ac7071c376ce ; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "torch==2.11.0+cu128 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "torchvision==0.26.0+cu128 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
