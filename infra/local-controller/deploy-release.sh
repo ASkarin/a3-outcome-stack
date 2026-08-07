@@ -7,17 +7,38 @@ release_root=${deployment_root}/releases
 collab_group=a3-collab
 release_marker=.a3-release-complete
 forwarded_ssh_auth_sock=
+private_git_known_hosts=
+github_host_key='github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl'
+github_host_key_fingerprint='SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU'
 
 fail() {
     echo "error: $*" >&2
     exit 1
 }
 
+cleanup() {
+    if [[ -n "${private_git_known_hosts}" ]]; then
+        rm -f -- "${private_git_known_hosts}"
+    fi
+}
+trap cleanup EXIT
+
 [[ "${EUID}" -eq 0 ]] || fail "run as root"
 action=${1:-}
 
 git_source() {
     git -c "safe.directory=${source_root}" -C "${source_root}" "$@"
+}
+
+prepare_private_git_transport() {
+    command -v ssh-keygen >/dev/null 2>&1 || \
+        fail "ssh-keygen is required to verify the private-repository host key"
+    private_git_known_hosts=$(mktemp /run/a3-github-known-hosts.XXXXXX)
+    chmod 0600 "${private_git_known_hosts}"
+    printf '%s\n' "${github_host_key}" >"${private_git_known_hosts}"
+    ssh-keygen -lf "${private_git_known_hosts}" -E sha256 | \
+        grep -F -- "${github_host_key_fingerprint}" >/dev/null || \
+        fail "pinned GitHub host key fingerprint verification failed"
 }
 
 capture_forwarded_agent() {
@@ -30,11 +51,19 @@ capture_forwarded_agent() {
         fail "forwarded SSH agent has no usable private-repository identity"
     forwarded_ssh_auth_sock=${SSH_AUTH_SOCK}
     unset SSH_AUTH_SOCK
+    prepare_private_git_transport
 }
 
 private_uv() {
     [[ -n "${forwarded_ssh_auth_sock}" ]] || fail "private dependency agent is unavailable"
-    SSH_AUTH_SOCK="${forwarded_ssh_auth_sock}" GIT_LFS_SKIP_SMUDGE=1 command uv "$@"
+    [[ -f "${private_git_known_hosts}" ]] || fail "private Git host key is unavailable"
+    local git_ssh_command
+    git_ssh_command="ssh -o BatchMode=yes -o StrictHostKeyChecking=yes"
+    git_ssh_command+=" -o HostKeyAlgorithms=ssh-ed25519"
+    git_ssh_command+=" -o UserKnownHostsFile=${private_git_known_hosts}"
+    git_ssh_command+=" -o GlobalKnownHostsFile=/dev/null -o IdentityFile=none"
+    SSH_AUTH_SOCK="${forwarded_ssh_auth_sock}" \
+        GIT_SSH_COMMAND="${git_ssh_command}" GIT_LFS_SKIP_SMUDGE=1 command uv "$@"
 }
 
 preinstall_registry_from_mirror() {
